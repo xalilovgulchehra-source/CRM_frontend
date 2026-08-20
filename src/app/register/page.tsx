@@ -6,7 +6,8 @@ import { api } from "@/lib/api";
 import type { AuthResponse } from "@/types";
 
 export default function RegisterPage() {
-  const [name, setName] = useState("");
+  const [salonName, setSalonName] = useState("");
+  const [ownerName, setOwnerName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -18,7 +19,8 @@ export default function RegisterPage() {
     setLoading(true);
     try {
       const res = await api.post<AuthResponse>("/auth/register", {
-        name,
+        salonName,
+        ownerName,
         email,
         password,
       });
@@ -47,15 +49,30 @@ export default function RegisterPage() {
           )}
 
           <div>
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
-              Ism
+            <label htmlFor="salonName" className="block text-sm font-medium text-gray-700 mb-1">
+              Salon nomi
             </label>
             <input
-              id="name"
+              id="salonName"
               type="text"
               required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              value={salonName}
+              onChange={(e) => setSalonName(e.target.value)}
+              className="w-full px-3 py-2.5 text-sm bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-900 focus:border-gray-900 transition-colors"
+              placeholder="Masalan: Gulchehra Salon"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="ownerName" className="block text-sm font-medium text-gray-700 mb-1">
+              Sizning ismingiz
+            </label>
+            <input
+              id="ownerName"
+              type="text"
+              required
+              value={ownerName}
+              onChange={(e) => setOwnerName(e.target.value)}
               className="w-full px-3 py-2.5 text-sm bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-900 focus:border-gray-900 transition-colors"
               placeholder="Ismingiz"
             />
@@ -97,7 +114,7 @@ export default function RegisterPage() {
             disabled={loading}
             className="w-full py-2.5 px-4 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {loading ? "Yaratilmoqda..." : "Ro&apos;yxatdan o&apos;tish"}
+            {loading ? "Yaratilmoqda..." : "Ro'yxatdan o'tish"}
           </button>
         </form>
 
