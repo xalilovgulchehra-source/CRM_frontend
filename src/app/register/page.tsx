@@ -10,6 +10,7 @@ export default function RegisterPage() {
   const [ownerName, setOwnerName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [phone, setPhone] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -23,6 +24,7 @@ export default function RegisterPage() {
         ownerName,
         email,
         password,
+        phone,
       });
       localStorage.setItem("token", res.token);
       window.location.href = "/dashboard";
@@ -90,6 +92,21 @@ export default function RegisterPage() {
               onChange={(e) => setEmail(e.target.value)}
               className="w-full px-3 py-2.5 text-sm bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-900 focus:border-gray-900 transition-colors"
               placeholder="admin@example.com"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
+              Telefon raqami
+            </label>
+            <input
+              id="phone"
+              type="tel"
+              required
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className="w-full px-3 py-2.5 text-sm bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-900 focus:border-gray-900 transition-colors"
+              placeholder="+998 90 123 45 67"
             />
           </div>
 
