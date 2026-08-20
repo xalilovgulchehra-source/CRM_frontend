@@ -24,10 +24,10 @@ export default function ClientsPage() {
 
   const load = useCallback(() => {
     setLoading(true);
-    const q = search ? `?search=${encodeURIComponent(search)}` : "";
+    const q = search ? `?q=${encodeURIComponent(search)}` : "";
     api
-      .get<Client[]>(`/clients${q}`)
-      .then(setClients)
+      .get<{ mijozlar: Client[]; soni: number }>(`/clients${q}`)
+      .then((res) => setClients(res.mijozlar))
       .catch(() => setClients([]))
       .finally(() => setLoading(false));
   }, [search]);
@@ -60,10 +60,11 @@ export default function ClientsPage() {
     setSaving(true);
     setError("");
     try {
+      const payload = { fullName: form.name, phone: form.phone, notes: form.notes };
       if (editing) {
-        await api.put(`/clients/${editing.id}`, form);
+        await api.put(`/clients/${editing.id}`, payload);
       } else {
-        await api.post("/clients", form);
+        await api.post("/clients", payload);
       }
       setModalOpen(false);
       load();
