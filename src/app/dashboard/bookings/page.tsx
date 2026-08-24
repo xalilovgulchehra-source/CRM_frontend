@@ -85,7 +85,7 @@ export default function BookingsPage() {
   }, [load]);
 
   // =========================
-  // CREATE
+  // CREATE BOOKING
   // =========================
 
   function openCreate() {
@@ -100,11 +100,15 @@ export default function BookingsPage() {
     setModalOpen(true);
   }
 
-  async function handleCreate(e: React.FormEvent<HTMLFormElement>) {
+  async function handleCreate(
+    e: React.FormEvent<HTMLFormElement>
+  ) {
     e.preventDefault();
 
     if (!form.clientId || !form.serviceId || !form.date) {
-      setError("Iltimos, barcha majburiy maydonlarni to'ldiring.");
+      setError(
+        "Iltimos, barcha majburiy maydonlarni to'ldiring."
+      );
       return;
     }
 
@@ -157,7 +161,10 @@ export default function BookingsPage() {
 
       await load();
     } catch (error) {
-      console.error("Statusni o'zgartirishda xatolik:", error);
+      console.error(
+        "Statusni o'zgartirishda xatolik:",
+        error
+      );
     }
   }
 
@@ -172,10 +179,12 @@ export default function BookingsPage() {
 
     try {
       await api.delete(`/bookings/${id}`);
-
       await load();
     } catch (error) {
-      console.error("Navbatni o'chirishda xatolik:", error);
+      console.error(
+        "Navbatni o'chirishda xatolik:",
+        error
+      );
     }
   }
 
@@ -183,30 +192,20 @@ export default function BookingsPage() {
   // HELPERS
   // =========================
 
-  function getClientName(id: string | number) {
-    const client = clients.find(
-      (c) => String(c.id) === String(id)
-    ) as Client & {
-      name?: string;
-      fullName?: string;
-      firstName?: string;
-    };
+function getClientName(id: string | number) {
+  const client = clients.find(
+    (client) => String(client.id) === String(id)
+  );
 
-    if (!client) {
-      return String(id);
-    }
-
-    return (
-      client.name ||
-      client.fullName ||
-      client.firstName ||
-      String(id)
-    );
+  if (!client) {
+    return String(id);
   }
 
+  return client.fullName;
+}
   function getServiceName(id: string | number) {
     const service = services.find(
-      (s) => String(s.id) === String(id)
+      (service) => String(service.id) === String(id)
     );
 
     if (!service) {
@@ -262,30 +261,14 @@ export default function BookingsPage() {
   // =========================
   // CLIENT OPTIONS
   // =========================
-
-  const clientSelectOptions = clients.map((client) => {
-    const typedClient = client as Client & {
-      name?: string;
-      fullName?: string;
-      firstName?: string;
-    };
-
-    const displayName =
-      typedClient.name ||
-      typedClient.fullName ||
-      typedClient.firstName ||
-      String(typedClient.id);
-
-    return (
-      <option
-        key={String(typedClient.id)}
-        value={String(typedClient.id)}
-      >
-        {displayName}
-      </option>
-    );
-  });
-
+const clientSelectOptions = clients.map((client) => (
+  <option
+    key={String(client.id)}
+    value={String(client.id)}
+  >
+    {client.fullName}
+  </option>
+));
   // =========================
   // SERVICE OPTIONS
   // =========================
@@ -388,9 +371,6 @@ export default function BookingsPage() {
     </div>
   ));
 
-  const totalBookingsText =
-    `Jami ${bookings.length} ta navbat`;
-
   // =========================
   // RETURN
   // =========================
@@ -405,7 +385,7 @@ export default function BookingsPage() {
           </h1>
 
           <p className="text-sm text-gray-500 mt-1">
-            {totalBookingsText}
+            Jami {bookings.length} ta navbat
           </p>
         </div>
 
@@ -502,7 +482,6 @@ export default function BookingsPage() {
           onSubmit={handleCreate}
           className="space-y-4 pt-2"
         >
-          {/* ERROR */}
           {error && (
             <div className="rounded-md bg-red-50 border border-red-200 px-3 py-2">
               <p className="text-sm text-red-600">
@@ -528,10 +507,7 @@ export default function BookingsPage() {
               }
               className="w-full text-sm border-gray-200 rounded-md focus:border-gray-950 focus:ring-gray-950"
             >
-              <option value="">
-                Tanlang
-              </option>
-
+              <option value="">Tanlang</option>
               {clientSelectOptions}
             </select>
           </div>
@@ -553,10 +529,7 @@ export default function BookingsPage() {
               }
               className="w-full text-sm border-gray-200 rounded-md focus:border-gray-950 focus:ring-gray-950"
             >
-              <option value="">
-                Tanlang
-              </option>
-
+              <option value="">Tanlang</option>
               {serviceSelectOptions}
             </select>
           </div>

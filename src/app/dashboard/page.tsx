@@ -82,7 +82,7 @@ export default function DashboardPage() {
                 >
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-gray-900 truncate">
-                      {b.client?.name || b.clientId}
+                      {b.client?.fullName || b.clientId}
                     </p>
                     <p className="text-xs text-gray-500">
                       {b.service?.name || b.serviceId} &middot;{" "}

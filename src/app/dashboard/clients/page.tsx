@@ -6,9 +6,8 @@ import { Modal } from "@/components/Modal";
 import type { Client } from "@/types";
 
 const emptyClient: Omit<Client, "id" | "createdAt"> = {
-  name: "",
+  fullName: "",
   phone: "",
-  email: "",
   notes: "",
 };
 
@@ -50,7 +49,7 @@ export default function ClientsPage() {
 
   function openEdit(c: Client) {
     setEditing(c);
-    setForm({ name: c.name, phone: c.phone, email: c.email || "", notes: c.notes || "" });
+    setForm({ fullName: c.fullName, phone: c.phone, notes: c.notes || "" });
     setError("");
     setModalOpen(true);
   }
@@ -60,7 +59,7 @@ export default function ClientsPage() {
     setSaving(true);
     setError("");
     try {
-      const payload = { fullName: form.name, phone: form.phone, notes: form.notes };
+      const payload = { fullName: form.fullName, phone: form.phone, notes: form.notes };
       if (editing) {
         await api.put(`/clients/${editing.id}`, payload);
       } else {
@@ -75,7 +74,7 @@ export default function ClientsPage() {
     }
   }
 
-  async function handleDelete(id: string) {
+  async function handleDelete(id: number) {
     if (!confirm("Mijozni o'chirmoqchimisiz?")) return;
     try {
       await api.delete(`/clients/${id}`);
@@ -124,16 +123,14 @@ export default function ClientsPage() {
                   <tr className="border-b border-gray-100">
                     <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-5 py-3">Ism</th>
                     <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-5 py-3">Telefon</th>
-                    <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-5 py-3">Email</th>
-                    <th className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider px-5 py-3">Amallar</th>
+                    <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-5 py-3">Amallar</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {clients.map((c) => (
                     <tr key={c.id} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="px-5 py-3 text-sm font-medium text-gray-900">{c.name}</td>
+                      <td className="px-5 py-3 text-sm font-medium text-gray-900">{c.fullName}</td>
                       <td className="px-5 py-3 text-sm text-gray-600">{c.phone}</td>
-                      <td className="px-5 py-3 text-sm text-gray-600">{c.email || "—"}</td>
                       <td className="px-5 py-3 text-right">
                         <button onClick={() => openEdit(c)} className="text-sm text-gray-600 hover:text-gray-900 mr-3">Tahrirlash</button>
                         <button onClick={() => handleDelete(c.id)} className="text-sm text-red-500 hover:text-red-700">O&apos;chirish</button>
@@ -148,13 +145,13 @@ export default function ClientsPage() {
               {clients.map((c) => (
                 <div key={c.id} className="px-5 py-4">
                   <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium text-gray-900">{c.name}</p>
+                    <p className="text-sm font-medium text-gray-900">{c.fullName}</p>
                     <div className="flex gap-2">
                       <button onClick={() => openEdit(c)} className="text-xs text-gray-600 hover:text-gray-900">Tahrirlash</button>
                       <button onClick={() => handleDelete(c.id)} className="text-xs text-red-500 hover:text-red-700">O&apos;chirish</button>
                     </div>
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">{c.phone}{c.email ? ` · ${c.email}` : ""}</p>
+                  <p className="text-xs text-gray-500 mt-1">{c.phone}</p>
                 </div>
               ))}
             </div>
@@ -178,8 +175,8 @@ export default function ClientsPage() {
             <input
               type="text"
               required
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              value={form.fullName}
+              onChange={(e) => setForm({ ...form, fullName: e.target.value })}
               className="w-full px-3 py-2.5 text-sm bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-900 focus:border-gray-900"
             />
           </div>
@@ -192,15 +189,6 @@ export default function ClientsPage() {
               onChange={(e) => setForm({ ...form, phone: e.target.value })}
               className="w-full px-3 py-2.5 text-sm bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-900 focus:border-gray-900"
               placeholder="+998 XX XXX XX XX"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <input
-              type="email"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              className="w-full px-3 py-2.5 text-sm bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-900 focus:border-gray-900"
             />
           </div>
           <div>
