@@ -1,15 +1,14 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { api } from "@/lib/api";
 import { Modal } from "@/components/Modal";
 import type { Service } from "@/types";
 
 const emptyService: Omit<Service, "id" | "createdAt"> = {
   name: "",
-  description: "",
   price: 0,
-  duration: 30,
+  durationMins: 30,
 };
 
 function formatPrice(n: number) {
@@ -28,18 +27,23 @@ export default function ServicesPage() {
 
   const load = useCallback(() => {
     setLoading(true);
-    const q = search ? `?search=${encodeURIComponent(search)}` : "";
     api
-      .get<Service[]>(`/services${q}`)
-      .then(setServices)
+      .get<{ xizmatlar: Service[]; soni: number }>("/services")
+      .then((res) => setServices(res.xizmatlar))
       .catch(() => setServices([]))
       .finally(() => setLoading(false));
-  }, [search]);
+  }, []);
 
   useEffect(() => {
-    const t = setTimeout(load, 300);
-    return () => clearTimeout(t);
-  }, [search, load]);
+    load();
+  }, [load]);
+
+  // Backend qidiruvni qo'llab-quvvatlamaydi — client-side filter
+  const filteredServices = useMemo(() => {
+    if (!search.trim()) return services;
+    const q = search.toLowerCase();
+    return services.filter((s) => s.name.toLowerCase().includes(q));
+  }, [services, search]);
 
   function openCreate() {
     setEditing(null);
@@ -50,7 +54,11 @@ export default function ServicesPage() {
 
   function openEdit(s: Service) {
     setEditing(s);
-    setForm({ name: s.name, description: s.description || "", price: s.price, duration: s.duration });
+    setForm({
+      name: s.name,
+      price: s.price,
+      durationMins: s.durationMins,
+    });
     setError("");
     setModalOpen(true);
   }
@@ -74,7 +82,7 @@ export default function ServicesPage() {
     }
   }
 
-  async function handleDelete(id: string) {
+  async function handleDelete(id: number) {
     if (!confirm("Xizmatni o'chirmoqchimisiz?")) return;
     try {
       await api.delete(`/services/${id}`);
@@ -112,7 +120,7 @@ export default function ServicesPage() {
       <div className="bg-white border border-gray-100 rounded-lg overflow-hidden">
         {loading ? (
           <div className="px-5 py-8 text-center text-sm text-gray-500">Yuklanmoqda...</div>
-        ) : services.length === 0 ? (
+        ) : filteredServices.length === 0 ? (
           <div className="px-5 py-8 text-center text-sm text-gray-500">Xizmatlar topilmadi</div>
         ) : (
           <>
@@ -127,16 +135,13 @@ export default function ServicesPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {services.map((s) => (
+                  {filteredServices.map((s) => (
                     <tr key={s.id} className="hover:bg-gray-50/50 transition-colors">
                       <td className="px-5 py-3">
                         <p className="text-sm font-medium text-gray-900">{s.name}</p>
-                        {s.description && (
-                          <p className="text-xs text-gray-500 mt-0.5">{s.description}</p>
-                        )}
                       </td>
                       <td className="px-5 py-3 text-sm text-gray-600">{formatPrice(s.price)}</td>
-                      <td className="px-5 py-3 text-sm text-gray-600">{s.duration} daqiqa</td>
+                      <td className="px-5 py-3 text-sm text-gray-600">{s.durationMins} daqiqa</td>
                       <td className="px-5 py-3 text-right">
                         <button onClick={() => openEdit(s)} className="text-sm text-gray-600 hover:text-gray-900 mr-3">Tahrirlash</button>
                         <button onClick={() => handleDelete(s.id)} className="text-sm text-red-500 hover:text-red-700">O&apos;chirish</button>
@@ -147,12 +152,12 @@ export default function ServicesPage() {
               </table>
             </div>
             <div className="md:hidden divide-y divide-gray-50">
-              {services.map((s) => (
+              {filteredServices.map((s) => (
                 <div key={s.id} className="px-5 py-4">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-gray-900">{s.name}</p>
-                      <p className="text-xs text-gray-500 mt-0.5">{formatPrice(s.price)} · {s.duration} daq</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{formatPrice(s.price)} · {s.durationMins} daq</p>
                     </div>
                     <div className="flex gap-2">
                       <button onClick={() => openEdit(s)} className="text-xs text-gray-600 hover:text-gray-900">Tahrirlash</button>
@@ -188,15 +193,6 @@ export default function ServicesPage() {
               placeholder="Kirish soch olish"
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Tavsif</label>
-            <textarea
-              rows={2}
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-              className="w-full px-3 py-2.5 text-sm bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-900 focus:border-gray-900 resize-none"
-            />
-          </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Narxi (so&apos;m) *</label>
@@ -215,8 +211,8 @@ export default function ServicesPage() {
                 type="number"
                 required
                 min={1}
-                value={form.duration}
-                onChange={(e) => setForm({ ...form, duration: Number(e.target.value) })}
+                value={form.durationMins}
+                onChange={(e) => setForm({ ...form, durationMins: Number(e.target.value) })}
                 className="w-full px-3 py-2.5 text-sm bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-900 focus:border-gray-900"
               />
             </div>

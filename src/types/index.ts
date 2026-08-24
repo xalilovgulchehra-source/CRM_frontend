@@ -1,38 +1,39 @@
 export interface User {
-  id: string;
-  name: string;
+  id: number;
   email: string;
-  role: string;
+  salonName: string;
+  ownerName: string;
+  phone: string;
+  createdAt: string;
 }
 
 export interface Client {
-  id: string;
-  name: string;
+  id: number;
+  fullName: string;
   phone: string;
-  email?: string;
   notes?: string;
+  lastVisit?: string | null;
   createdAt: string;
 }
 
 export interface Service {
-  id: string;
+  id: number;
   name: string;
-  description?: string;
   price: number;
-  duration: number;
+  durationMins: number;
   createdAt: string;
 }
 
 export interface Booking {
-  id: string;
-  clientId: string;
+  id: number;
+  clientId: number;
   client?: Client;
-  serviceId: string;
+  serviceId: number;
   service?: Service;
   date: string;
-  time?: string;
-  status: "pending" | "confirmed" | "completed" | "cancelled";
+  status: "PENDING" | "CONFIRMED" | "DONE" | "CANCELLED";
   notes?: string;
+  price: number;
   createdAt: string;
 }
 
