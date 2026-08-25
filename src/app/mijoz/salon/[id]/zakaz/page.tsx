@@ -1,14 +1,12 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, use, useRef } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import type { SalonService, SalonBrief } from "@/types";
 
 export default function ZakazPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: salonId } = use(params);
-  const router = useRouter();
 
   const [salon, setSalon] = useState<SalonBrief | null>(null);
   const [services, setServices] = useState<SalonService[]>([]);
@@ -16,8 +14,12 @@ export default function ZakazPage({ params }: { params: Promise<{ id: string }> 
   const [error, setError] = useState("");
 
   const [selectedService, setSelectedService] = useState<SalonService | null>(null);
-  const [serviceSearch, setServiceSearch] = useState("");
+  const [serviceName, setServiceName] = useState("");
+  const [servicePrice, setServicePrice] = useState("");
+  const [serviceDuration, setServiceDuration] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
   const [date, setDate] = useState("");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -38,27 +40,59 @@ export default function ZakazPage({ params }: { params: Promise<{ id: string }> 
       .finally(() => setLoading(false));
   }, [salonId]);
 
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const filteredServices = services.filter((s) =>
-    s.name.toLowerCase().includes(serviceSearch.toLowerCase())
+    s.name.toLowerCase().includes(serviceName.toLowerCase())
   );
 
   function selectService(service: SalonService) {
     setSelectedService(service);
-    setServiceSearch(service.name);
+    setServiceName(service.name);
+    setServicePrice(String(service.price));
+    setServiceDuration(String(service.durationMins));
     setShowDropdown(false);
   }
 
+  function handleServiceNameChange(value: string) {
+    setServiceName(value);
+    setSelectedService(null);
+    setServicePrice("");
+    setServiceDuration("");
+    setShowDropdown(true);
+  }
+
+  const canSubmit = serviceName.trim() && date && !submitting;
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!selectedService || !date) return;
+    if (!canSubmit) return;
+
+    const payload: Record<string, unknown> = {
+      date,
+      notes: notes || undefined,
+    };
+
+    if (selectedService) {
+      payload.serviceId = selectedService.id;
+    } else {
+      payload.serviceName = serviceName.trim();
+      payload.price = Number(servicePrice) || 0;
+      payload.durationMins = Number(serviceDuration) || 30;
+    }
+
     setSubmitting(true);
     setSubmitError("");
     try {
-      await api.post(`/salons/${salonId}/bookings`, {
-        serviceId: selectedService.id,
-        date,
-        notes: notes || undefined,
-      });
+      await api.post(`/salons/${salonId}/bookings`, payload);
       setSuccess(true);
     } catch (err: unknown) {
       setSubmitError(err instanceof Error ? err.message : "Xatolik yuz berdi");
@@ -131,51 +165,55 @@ export default function ZakazPage({ params }: { params: Promise<{ id: string }> 
         )}
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-5">
         {submitError && (
           <div className="bg-red-50 text-red-600 text-sm px-4 py-3 rounded-md border border-red-100">
             {submitError}
           </div>
         )}
 
-        <div className="relative">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Xizmatni tanlang</label>
+        <div className="relative" ref={dropdownRef}>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Xizmat nomi *</label>
           <div className="relative">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
             </svg>
             <input
               type="text"
-              value={serviceSearch}
-              onChange={(e) => {
-                setServiceSearch(e.target.value);
-                setSelectedService(null);
-                setShowDropdown(true);
-              }}
-              onFocus={() => setShowDropdown(true)}
-              onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
+              value={serviceName}
+              onChange={(e) => handleServiceNameChange(e.target.value)}
+              onFocus={() => serviceName && setShowDropdown(true)}
               placeholder="Xizmat nomini kiriting..."
               className="w-full pl-10 pr-4 py-2.5 text-sm bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-900 focus:border-gray-900 transition-colors"
             />
           </div>
-          {showDropdown && serviceSearch && filteredServices.length > 0 && (
+          {showDropdown && serviceName && filteredServices.length > 0 && (
             <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-48 overflow-y-auto">
               {filteredServices.map((service) => (
                 <button
                   key={service.id}
                   type="button"
-                  onMouseDown={() => selectService(service)}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    selectService(service);
+                  }}
                   className={`w-full text-left px-4 py-3 text-sm hover:bg-gray-50 transition-colors ${
                     selectedService?.id === service.id ? "bg-gray-50 font-medium" : ""
                   }`}
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-gray-900">{service.name}</span>
-                    <span className="text-gray-500 text-xs">{service.durationMins} daq &middot; {service.price.toLocaleString("uz-UZ")} so&apos;m</span>
+                    <span className="text-gray-500 text-xs">{service.durationMins} daq · {service.price.toLocaleString("uz-UZ")} so&apos;m</span>
                   </div>
                 </button>
               ))}
             </div>
+          )}
+          {services.length > 0 && !selectedService && !serviceName && (
+            <p className="text-xs text-gray-400 mt-1">Mavjud xizmatlardan birini tanlang yoki yangi kiriting</p>
+          )}
+          {services.length === 0 && (
+            <p className="text-xs text-gray-400 mt-1">Salonda hozircha xizmatlar yo&apos;q — o&apos;zingiz kiriting</p>
           )}
         </div>
 
@@ -196,9 +234,34 @@ export default function ZakazPage({ params }: { params: Promise<{ id: string }> 
           </div>
         )}
 
+        {!selectedService && serviceName && (
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Narx (so&apos;m)</label>
+              <input
+                type="number"
+                value={servicePrice}
+                onChange={(e) => setServicePrice(e.target.value)}
+                placeholder="0"
+                className="w-full px-3 py-2.5 text-sm bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-900 focus:border-gray-900 transition-colors"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Davomiyligi (daqiqa)</label>
+              <input
+                type="number"
+                value={serviceDuration}
+                onChange={(e) => setServiceDuration(e.target.value)}
+                placeholder="30"
+                className="w-full px-3 py-2.5 text-sm bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-900 focus:border-gray-900 transition-colors"
+              />
+            </div>
+          </div>
+        )}
+
         <div>
           <label htmlFor="booking-date" className="block text-sm font-medium text-gray-700 mb-1">
-            Sana va vaqt
+            Sana va vaqt *
           </label>
           <input
             id="booking-date"
@@ -226,7 +289,7 @@ export default function ZakazPage({ params }: { params: Promise<{ id: string }> 
 
         <button
           type="submit"
-          disabled={!selectedService || !date || submitting}
+          disabled={!canSubmit}
           className="w-full py-3 px-4 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {submitting ? "Yuborilmoqda..." : "Zakaz berish"}
