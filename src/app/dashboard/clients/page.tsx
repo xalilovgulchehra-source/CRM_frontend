@@ -5,11 +5,7 @@ import { api } from "@/lib/api";
 import { Modal } from "@/components/Modal";
 import type { Client } from "@/types";
 
-const emptyClient: Omit<Client, "id" | "createdAt"> = {
-  fullName: "",
-  phone: "",
-  notes: "",
-};
+const emptyForm = { fullName: "", phone: "", notes: "" };
 
 export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
@@ -17,7 +13,7 @@ export default function ClientsPage() {
   const [search, setSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Client | null>(null);
-  const [form, setForm] = useState(emptyClient);
+  const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -42,7 +38,7 @@ export default function ClientsPage() {
 
   function openCreate() {
     setEditing(null);
-    setForm(emptyClient);
+    setForm(emptyForm);
     setError("");
     setModalOpen(true);
   }
@@ -59,11 +55,10 @@ export default function ClientsPage() {
     setSaving(true);
     setError("");
     try {
-      const payload = { fullName: form.fullName, phone: form.phone, notes: form.notes };
       if (editing) {
-        await api.put(`/clients/${editing.id}`, payload);
+        await api.put(`/clients/${editing.id}`, form);
       } else {
-        await api.post("/clients", payload);
+        await api.post("/clients", form);
       }
       setModalOpen(false);
       load();
@@ -116,14 +111,14 @@ export default function ClientsPage() {
           <div className="px-5 py-8 text-center text-sm text-gray-500">Mijozlar topilmadi</div>
         ) : (
           <>
-            {/* Desktop table */}
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-100">
                     <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-5 py-3">Ism</th>
                     <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-5 py-3">Telefon</th>
-                    <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-5 py-3">Amallar</th>
+                    <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-5 py-3">Eslatma</th>
+                    <th className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider px-5 py-3">Amallar</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -131,6 +126,7 @@ export default function ClientsPage() {
                     <tr key={c.id} className="hover:bg-gray-50/50 transition-colors">
                       <td className="px-5 py-3 text-sm font-medium text-gray-900">{c.fullName}</td>
                       <td className="px-5 py-3 text-sm text-gray-600">{c.phone}</td>
+                      <td className="px-5 py-3 text-sm text-gray-600">{c.notes || "—"}</td>
                       <td className="px-5 py-3 text-right">
                         <button onClick={() => openEdit(c)} className="text-sm text-gray-600 hover:text-gray-900 mr-3">Tahrirlash</button>
                         <button onClick={() => handleDelete(c.id)} className="text-sm text-red-500 hover:text-red-700">O&apos;chirish</button>
@@ -140,7 +136,6 @@ export default function ClientsPage() {
                 </tbody>
               </table>
             </div>
-            {/* Mobile list */}
             <div className="md:hidden divide-y divide-gray-50">
               {clients.map((c) => (
                 <div key={c.id} className="px-5 py-4">
