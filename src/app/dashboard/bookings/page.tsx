@@ -5,7 +5,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { Modal } from "@/components/Modal";
 import { ChatModal } from "@/components/ChatModal";
-import { getUnreadCount } from "@/lib/chat-store";
+import { fetchChatMessages } from "@/lib/chat-store";
 import type { Booking, Client, Service, SalonBrief } from "@/types";
 
 const statusLabels: Record<string, string> = {
@@ -44,7 +44,6 @@ export default function BookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [services, setServices] = useState<Service[]>([]);
-  const [salonId, setSalonId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState({ clientId: "", serviceId: "", date: "", notes: "" });
@@ -52,17 +51,9 @@ export default function BookingsPage() {
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<Booking["status"] | "">("");
   const [chatOpen, setChatOpen] = useState(false);
-  const [chatClientId, setChatClientId] = useState(0);
+  const [chatBookingId, setChatBookingId] = useState(0);
   const [chatClientName, setChatClientName] = useState("");
   const [, setTick] = useState(0);
-
-  useEffect(() => {
-    if (!user) return;
-    api.get<{ salonlar: SalonBrief[] }>("/salons").then((res) => {
-      const found = res.salonlar.find((s) => s.ownerName === user.ownerName && s.salonName === user.salonName);
-      if (found) setSalonId(found.id);
-    }).catch(() => {});
-  }, [user]);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -97,16 +88,32 @@ export default function BookingsPage() {
     });
   }, [bookings]);
 
+  const [, setUnreadMap] = useState<Record<number, number>>({});
+
+  useEffect(() => {
+    if (bookings.length === 0) return;
+    const check = async () => {
+      const map: Record<number, number> = {};
+      for (const b of bookings) {
+        const msgs = await fetchChatMessages(b.id);
+        const unread = msgs.filter((m) => m.from === "customer" && !m.read).length;
+        if (unread > 0) map[b.id] = unread;
+      }
+      setUnreadMap(map);
+    };
+    check();
+    const interval = setInterval(check, 5000);
+    return () => clearInterval(interval);
+  }, [bookings]);
+
   useEffect(() => {
     const handler = () => setTick((t) => t + 1);
     window.addEventListener("chat-new-message", handler);
-    const interval = setInterval(() => setTick((t) => t + 1), 3000);
-    return () => { window.removeEventListener("chat-new-message", handler); clearInterval(interval); };
+    return () => window.removeEventListener("chat-new-message", handler);
   }, []);
 
-  function openChat(clientId: number, clientName: string) {
-    if (!salonId) return;
-    setChatClientId(clientId);
+  function openChat(bookingId: number, clientName: string) {
+    setChatBookingId(bookingId);
     setChatClientName(clientName);
     setChatOpen(true);
   }
@@ -161,12 +168,11 @@ export default function BookingsPage() {
 
   return (
     <div>
-      {salonId && chatOpen && (
+      {chatOpen && (
         <ChatModal
           open={chatOpen}
           onClose={() => setChatOpen(false)}
-          salonId={salonId}
-          clientId={chatClientId}
+          bookingId={chatBookingId}
           clientName={chatClientName}
           role="owner"
           title={chatClientName}
@@ -228,130 +234,114 @@ export default function BookingsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {bookings.map((b) => {
-                    const unread = salonId ? getUnreadCount(salonId, b.clientId, "owner") : 0;
-                    return (
-                      <tr key={b.id} className="hover:bg-gray-50/50 transition-colors">
-                        <td className="px-5 py-3">
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">{getClientName(b)}</p>
-                            {getPhone(b) && (
-                              <p className="text-xs text-gray-400 mt-0.5">{getPhone(b)}</p>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-5 py-3 text-sm text-gray-600">{b.service?.name || b.serviceId}</td>
-                        <td className="px-5 py-3 text-sm text-gray-600">
-                          {new Date(b.date).toLocaleDateString("uz-UZ", {
-                            year: "numeric",
-                            month: "short",
-                            day: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </td>
-                        <td className="px-5 py-3 text-sm font-medium text-gray-900">
-                          {b.price.toLocaleString("uz-UZ")} so&apos;m
-                        </td>
-                        <td className="px-5 py-3">
-                          <select
-                            value={b.status}
-                            onChange={(e) => updateStatus(b.id, e.target.value)}
-                            className={`text-xs font-medium px-2.5 py-1 rounded-full border-0 focus:ring-1 focus:ring-gray-900 cursor-pointer ${statusColors[b.status] || ""}`}
+                  {bookings.map((b) => (
+                    <tr key={b.id} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="px-5 py-3">
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{getClientName(b)}</p>
+                          {getPhone(b) && (
+                            <p className="text-xs text-gray-400 mt-0.5">{getPhone(b)}</p>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-5 py-3 text-sm text-gray-600">{b.service?.name || b.serviceId}</td>
+                      <td className="px-5 py-3 text-sm text-gray-600">
+                        {new Date(b.date).toLocaleDateString("uz-UZ", {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </td>
+                      <td className="px-5 py-3 text-sm font-medium text-gray-900">
+                        {b.price.toLocaleString("uz-UZ")} so&apos;m
+                      </td>
+                      <td className="px-5 py-3">
+                        <select
+                          value={b.status}
+                          onChange={(e) => updateStatus(b.id, e.target.value)}
+                          className={`text-xs font-medium px-2.5 py-1 rounded-full border-0 focus:ring-1 focus:ring-gray-900 cursor-pointer ${statusColors[b.status] || ""}`}
+                        >
+                          {statusOptions.map((s) => (
+                            <option key={s} value={s}>{statusLabels[s]}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-5 py-3 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => openChat(b.id, getClientName(b))}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors"
                           >
-                            {statusOptions.map((s) => (
-                              <option key={s} value={s}>{statusLabels[s]}</option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="px-5 py-3 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={() => openChat(b.clientId, getClientName(b))}
-                              className="relative inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors"
-                            >
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 20.105V4.875A2.25 2.25 0 016 2.625h12A2.25 2.25 0 0120.25 4.875v10.5A2.25 2.25 0 0118 17.625H6.75L3.75 20.105z" />
-                              </svg>
-                              Chat
-                              {unread > 0 && (
-                                <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                                  {unread}
-                                </span>
-                              )}
-                            </button>
-                            <button
-                              onClick={() => handleDelete(b.id)}
-                              className="text-xs text-red-500 hover:text-red-700 px-2 py-1.5"
-                            >
-                              O&apos;chirish
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 20.105V4.875A2.25 2.25 0 016 2.625h12A2.25 2.25 0 0120.25 4.875v10.5A2.25 2.25 0 0118 17.625H6.75L3.75 20.105z" />
+                            </svg>
+                            Chat
+                          </button>
+                          <button
+                            onClick={() => handleDelete(b.id)}
+                            className="text-xs text-red-500 hover:text-red-700 px-2 py-1.5"
+                          >
+                            O&apos;chirish
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
             <div className="lg:hidden divide-y divide-gray-50">
-              {bookings.map((b) => {
-                const unread = salonId ? getUnreadCount(salonId, b.clientId, "owner") : 0;
-                return (
-                  <div key={b.id} className="px-5 py-4">
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="text-sm font-medium text-gray-900">{getClientName(b)}</p>
-                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusColors[b.status] || ""}`}>
-                        {statusLabels[b.status]}
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-500 mb-1">
-                      {b.service?.name || b.serviceId} &middot; {new Date(b.date).toLocaleDateString("uz-UZ", {
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </p>
-                    <p className="text-xs font-medium text-gray-900 mb-2">
-                      {b.price.toLocaleString("uz-UZ")} so&apos;m
-                    </p>
-                    {b.notes && <p className="text-xs text-gray-400 mb-2">{b.notes}</p>}
-                    <div className="flex items-center gap-2">
-                      <select
-                        value={b.status}
-                        onChange={(e) => updateStatus(b.id, e.target.value)}
-                        className={`text-xs font-medium px-2.5 py-1 rounded-full border-0 focus:ring-1 focus:ring-gray-900 cursor-pointer ${statusColors[b.status] || ""}`}
-                      >
-                        {statusOptions.map((s) => (
-                          <option key={s} value={s}>{statusLabels[s]}</option>
-                        ))}
-                      </select>
-                      <button
-                        onClick={() => openChat(b.clientId, getClientName(b))}
-                        className="relative inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 20.105V4.875A2.25 2.25 0 016 2.625h12A2.25 2.25 0 0120.25 4.875v10.5A2.25 2.25 0 0118 17.625H6.75L3.75 20.105z" />
-                        </svg>
-                        Chat
-                        {unread > 0 && (
-                          <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                            {unread}
-                          </span>
-                        )}
-                      </button>
-                      <button
-                        onClick={() => handleDelete(b.id)}
-                        className="text-xs text-red-500 hover:text-red-700 px-2 py-1.5"
-                      >
-                        O&apos;chirish
-                      </button>
-                    </div>
+              {bookings.map((b) => (
+                <div key={b.id} className="px-5 py-4">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-sm font-medium text-gray-900">{getClientName(b)}</p>
+                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusColors[b.status] || ""}`}>
+                      {statusLabels[b.status]}
+                    </span>
                   </div>
-                );
-              })}
+                  <p className="text-xs text-gray-500 mb-1">
+                    {b.service?.name || b.serviceId} &middot; {new Date(b.date).toLocaleDateString("uz-UZ", {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                  <p className="text-xs font-medium text-gray-900 mb-2">
+                    {b.price.toLocaleString("uz-UZ")} so&apos;m
+                  </p>
+                  {b.notes && !b.notes.startsWith("[CHAT]") && <p className="text-xs text-gray-400 mb-2">{b.notes}</p>}
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={b.status}
+                      onChange={(e) => updateStatus(b.id, e.target.value)}
+                      className={`text-xs font-medium px-2.5 py-1 rounded-full border-0 focus:ring-1 focus:ring-gray-900 cursor-pointer ${statusColors[b.status] || ""}`}
+                    >
+                      {statusOptions.map((s) => (
+                        <option key={s} value={s}>{statusLabels[s]}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => openChat(b.id, getClientName(b))}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 20.105V4.875A2.25 2.25 0 016 2.625h12A2.25 2.25 0 0120.25 4.875v10.5A2.25 2.25 0 0118 17.625H6.75L3.75 20.105z" />
+                      </svg>
+                      Chat
+                    </button>
+                    <button
+                      onClick={() => handleDelete(b.id)}
+                      className="text-xs text-red-500 hover:text-red-700 px-2 py-1.5"
+                    >
+                      O&apos;chirish
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </>
         )}

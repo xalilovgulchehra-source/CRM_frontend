@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
 import { ChatModal } from "@/components/ChatModal";
-import { getAllUnreadForCustomer } from "@/lib/chat-store";
+import { fetchChatMessages } from "@/lib/chat-store";
 import type { MyBooking } from "@/types";
 
 const nav = [
@@ -23,22 +23,15 @@ function Icon({ path }: { path: string }) {
   );
 }
 
-interface SalonLink {
-  salonId: number;
-  clientId: number;
-  salonName: string;
-}
-
 function MijozShell({ children }: { children: React.ReactNode }) {
   const { user, loading, logout } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [salonLinks, setSalonLinks] = useState<SalonLink[]>([]);
+  const [myBookings, setMyBookings] = useState<MyBooking[]>([]);
   const [totalUnread, setTotalUnread] = useState(0);
   const [chatOpen, setChatOpen] = useState(false);
-  const [activeSalon, setActiveSalon] = useState<SalonLink | null>(null);
-  const [, setTick] = useState(0);
+  const [activeBooking, setActiveBooking] = useState<{ bookingId: number; salonName: string } | null>(null);
 
   useEffect(() => {
     if (!loading && user && user.role === "OWNER") {
@@ -55,30 +48,25 @@ function MijozShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!user) return;
     api.get<{ navbatlar: MyBooking[] }>("/my-bookings").then((res) => {
-      const links: SalonLink[] = [];
-      const seen = new Set<string>();
-      for (const b of res.navbatlar || []) {
-        const key = `${b.salonId}_${user.id}`;
-        if (!seen.has(key) && b.salonId) {
-          seen.add(key);
-          links.push({ salonId: b.salonId, clientId: user.id, salonName: b.salonName || "Salon" });
-        }
-      }
-      setSalonLinks(links);
+      setMyBookings(res.navbatlar || []);
     }).catch(() => {});
   }, [user]);
 
   useEffect(() => {
-    const check = () => {
-      const unread = getAllUnreadForCustomer();
-      setTotalUnread(unread.reduce((s, u) => s + u.count, 0));
+    if (myBookings.length === 0) return;
+    let cancelled = false;
+    const check = async () => {
+      let total = 0;
+      for (const b of myBookings) {
+        const msgs = await fetchChatMessages(b.id);
+        total += msgs.filter((m) => m.from === "owner" && !m.read).length;
+      }
+      if (!cancelled) setTotalUnread(total);
     };
     check();
-    const handler = () => { check(); setTick((t) => t + 1); };
-    window.addEventListener("chat-new-message", handler);
-    const interval = setInterval(check, 3000);
-    return () => { window.removeEventListener("chat-new-message", handler); clearInterval(interval); };
-  }, []);
+    const interval = setInterval(check, 5000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [myBookings]);
 
   if (loading) {
     return (
@@ -90,9 +78,12 @@ function MijozShell({ children }: { children: React.ReactNode }) {
 
   if (!user) return null;
 
-  function openChatFor(s: SalonLink) {
-    setActiveSalon(s);
-    setChatOpen(true);
+  function openChat() {
+    const latest = myBookings[0];
+    if (latest) {
+      setActiveBooking({ bookingId: latest.id, salonName: latest.salonName });
+      setChatOpen(true);
+    }
   }
 
   return (
@@ -104,15 +95,14 @@ function MijozShell({ children }: { children: React.ReactNode }) {
         />
       )}
 
-      {activeSalon && (
+      {activeBooking && (
         <ChatModal
           open={chatOpen}
           onClose={() => setChatOpen(false)}
-          salonId={activeSalon.salonId}
-          clientId={activeSalon.clientId}
-          clientName={activeSalon.salonName}
+          bookingId={activeBooking.bookingId}
+          clientName={activeBooking.salonName}
           role="customer"
-          title={activeSalon.salonName}
+          title={activeBooking.salonName}
         />
       )}
 
@@ -158,22 +148,20 @@ function MijozShell({ children }: { children: React.ReactNode }) {
               <p className="text-sm font-medium text-gray-900 truncate">
                 {user.fullName || user.ownerName || "Mijoz"}
               </p>
-              {salonLinks.length > 0 && (
-                <button
-                  onClick={() => openChatFor(salonLinks[0])}
-                  className="relative shrink-0 p-1 text-gray-400 hover:text-gray-700 transition-colors rounded-md hover:bg-gray-100"
-                  title="Chat"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 20.105V4.875A2.25 2.25 0 016 2.625h12A2.25 2.25 0 0120.25 4.875v10.5A2.25 2.25 0 0118 17.625H6.75L3.75 20.105z" />
-                  </svg>
-                  {totalUnread > 0 && (
-                    <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-0.5 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
-                      {totalUnread}
-                    </span>
-                  )}
-                </button>
-              )}
+              <button
+                onClick={openChat}
+                className="relative shrink-0 p-1 text-gray-400 hover:text-gray-700 transition-colors rounded-md hover:bg-gray-100"
+                title="Chat"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 20.105V4.875A2.25 2.25 0 016 2.625h12A2.25 2.25 0 0120.25 4.875v10.5A2.25 2.25 0 0118 17.625H6.75L3.75 20.105z" />
+                </svg>
+                {totalUnread > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-0.5 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                    {totalUnread}
+                  </span>
+                )}
+              </button>
             </div>
             <p className="text-xs text-gray-500 truncate">{user.email}</p>
           </div>

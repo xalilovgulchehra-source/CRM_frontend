@@ -1,84 +1,106 @@
+import { api } from "./api";
+
 export interface ChatMessage {
   id: string;
-  conversationId: string;
-  salonId: number;
-  clientId: number;
   from: "owner" | "customer";
   text: string;
   timestamp: number;
   read: boolean;
 }
 
-const PREFIX = "crm_chat_";
+const CHAT_PREFIX = "[CHAT]";
 
-function getConversationKey(salonId: number, clientId: number): string {
-  return `${PREFIX}${salonId}_${clientId}`;
+function serializeMessages(messages: ChatMessage[]): string {
+  return messages.map((m) => {
+    const readFlag = m.read ? "R" : "U";
+    return `${CHAT_PREFIX}|${m.id}|${m.from}|${readFlag}|${m.timestamp}|${m.text}`;
+  }).join("\n");
 }
 
-export function getMessages(salonId: number, clientId: number): ChatMessage[] {
-  if (typeof window === "undefined") return [];
-  const key = getConversationKey(salonId, clientId);
+function deserializeMessages(notes: string): ChatMessage[] {
+  if (!notes) return [];
+  return notes.split("\n").filter((l) => l.startsWith(CHAT_PREFIX)).map((line) => {
+    const parts = line.split("|");
+    if (parts.length < 6) return null;
+    return {
+      id: parts[1],
+      from: parts[2] as "owner" | "customer",
+      read: parts[3] === "R",
+      timestamp: Number(parts[4]),
+      text: parts.slice(5).join("|"),
+    };
+  }).filter(Boolean) as ChatMessage[];
+}
+
+function getBookingNotesKey(bookingId: number): string {
+  return `crm_chat_booking_${bookingId}`;
+}
+
+let cachedBookingNotes: Record<number, string> = {};
+
+export async function fetchChatMessages(bookingId: number): Promise<ChatMessage[]> {
   try {
-    return JSON.parse(localStorage.getItem(key) || "[]");
+    const res = await api.get<{ navbat: { id: number; notes?: string } }>(`/bookings/${bookingId}`);
+    const notes = res.navbat?.notes || "";
+    cachedBookingNotes[bookingId] = notes;
+    return deserializeMessages(notes);
   } catch {
-    return [];
+    return deserializeMessages(cachedBookingNotes[bookingId] || "");
   }
 }
 
-export function sendMessage(
-  salonId: number,
-  clientId: number,
+export async function sendChatMessage(
+  bookingId: number,
   from: "owner" | "customer",
   text: string
-): ChatMessage {
-  const msg: ChatMessage = {
-    id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-    conversationId: `${salonId}_${clientId}`,
-    salonId,
-    clientId,
-    from,
-    text,
-    timestamp: Date.now(),
-    read: false,
-  };
-  const messages = getMessages(salonId, clientId);
-  messages.push(msg);
-  const key = getConversationKey(salonId, clientId);
-  localStorage.setItem(key, JSON.stringify(messages));
-  window.dispatchEvent(new CustomEvent("chat-new-message", { detail: msg }));
-  return msg;
-}
+): Promise<ChatMessage | null> {
+  try {
+    const res = await api.get<{ navbat: { id: number; notes?: string } }>(`/bookings/${bookingId}`);
+    const existingNotes = res.navbat?.notes || "";
 
-export function markRead(salonId: number, clientId: number, forRole: "owner" | "customer") {
-  const messages = getMessages(salonId, clientId);
-  let changed = false;
-  messages.forEach((m) => {
-    if (m.from !== forRole && !m.read) {
-      m.read = true;
-      changed = true;
-    }
-  });
-  if (changed) {
-    localStorage.setItem(getConversationKey(salonId, clientId), JSON.stringify(messages));
+    const msg: ChatMessage = {
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      from,
+      text,
+      timestamp: Date.now(),
+      read: false,
+    };
+
+    const chatMessages = deserializeMessages(existingNotes);
+    chatMessages.push(msg);
+
+    const chatBlock = serializeMessages(chatMessages);
+    const nonChatLines = existingNotes.split("\n").filter((l) => !l.startsWith(CHAT_PREFIX));
+    const newNotes = [...nonChatLines.filter(Boolean), chatBlock].join("\n");
+
+    await api.put(`/bookings/${bookingId}`, { notes: newNotes });
+    cachedBookingNotes[bookingId] = newNotes;
+    return msg;
+  } catch {
+    return null;
   }
 }
 
-export function getUnreadCount(salonId: number, clientId: number, forRole: "owner" | "customer"): number {
-  return getMessages(salonId, clientId).filter((m) => m.from !== forRole && !m.read).length;
-}
+export async function markChatRead(bookingId: number, forRole: "owner" | "customer"): Promise<void> {
+  try {
+    const res = await api.get<{ navbat: { id: number; notes?: string } }>(`/bookings/${bookingId}`);
+    const existingNotes = res.navbat?.notes || "";
+    const chatMessages = deserializeMessages(existingNotes);
 
-export function getAllUnreadForCustomer(): { salonId: number; clientId: number; count: number }[] {
-  if (typeof window === "undefined") return [];
-  const result: { salonId: number; clientId: number; count: number }[] = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key && key.startsWith(PREFIX)) {
-      const parts = key.replace(PREFIX, "").split("_");
-      const salonId = Number(parts[0]);
-      const clientId = Number(parts[1]);
-      const count = getUnreadCount(salonId, clientId, "customer");
-      if (count > 0) result.push({ salonId, clientId, count });
+    let changed = false;
+    chatMessages.forEach((m) => {
+      if (m.from !== forRole && !m.read) {
+        m.read = true;
+        changed = true;
+      }
+    });
+
+    if (changed) {
+      const chatBlock = serializeMessages(chatMessages);
+      const nonChatLines = existingNotes.split("\n").filter((l) => !l.startsWith(CHAT_PREFIX));
+      const newNotes = [...nonChatLines.filter(Boolean), chatBlock].join("\n");
+      await api.put(`/bookings/${bookingId}`, { notes: newNotes });
+      cachedBookingNotes[bookingId] = newNotes;
     }
-  }
-  return result;
+  } catch {}
 }

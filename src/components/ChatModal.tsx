@@ -1,60 +1,78 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { getMessages, sendMessage, markRead, type ChatMessage } from "@/lib/chat-store";
+import { useState, useEffect, useRef, useCallback } from "react";
+import {
+  fetchChatMessages,
+  sendChatMessage,
+  markChatRead,
+  type ChatMessage,
+} from "@/lib/chat-store";
 
 interface ChatModalProps {
   open: boolean;
   onClose: () => void;
-  salonId: number;
-  clientId: number;
+  bookingId: number;
   clientName: string;
   role: "owner" | "customer";
   title?: string;
 }
 
-export function ChatModal({ open, onClose, salonId, clientId, clientName, role, title }: ChatModalProps) {
+export function ChatModal({ open, onClose, bookingId, clientName, role, title }: ChatModalProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [text, setText] = useState("");
+  const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const loadMessages = useCallback(async () => {
+    const msgs = await fetchChatMessages(bookingId);
+    setMessages(msgs);
+  }, [bookingId]);
 
   useEffect(() => {
-    if (!open) return;
-    markRead(salonId, clientId, role);
-    setMessages(getMessages(salonId, clientId));
-
-    const handler = () => {
-      if (open) setMessages(getMessages(salonId, clientId));
+    if (!open) {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      return;
+    }
+    setLoading(true);
+    markChatRead(bookingId, role).then(() => loadMessages()).then(() => setLoading(false));
+    intervalRef.current = setInterval(loadMessages, 3000);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
     };
-    window.addEventListener("chat-new-message", handler);
-    return () => window.removeEventListener("chat-new-message", handler);
-  }, [open, salonId, clientId, role]);
+  }, [open, bookingId, role, loadMessages]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length, open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const interval = setInterval(() => {
-      setMessages(getMessages(salonId, clientId));
-    }, 2000);
-    return () => clearInterval(interval);
-  }, [open, salonId, clientId]);
+  }, [messages.length]);
 
   if (!open) return null;
 
-  function handleSend(e: React.FormEvent) {
+  async function handleSend(e: React.FormEvent) {
     e.preventDefault();
     if (!text.trim()) return;
-    sendMessage(salonId, clientId, role, text.trim());
+    const msg = text.trim();
     setText("");
-    setMessages(getMessages(salonId, clientId));
+    setMessages((prev) => [
+      ...prev,
+      { id: "temp", from: role, text: msg, timestamp: Date.now(), read: false },
+    ]);
+    await sendChatMessage(bookingId, role, msg);
+    await loadMessages();
   }
 
   function formatTime(ts: number): string {
     return new Date(ts).toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" });
   }
+
+  function formatDate(ts: number): string {
+    const d = new Date(ts);
+    const today = new Date();
+    if (d.toDateString() === today.toDateString()) return "Bugun";
+    return d.toLocaleDateString("uz-UZ", { day: "numeric", month: "short" });
+  }
+
+  let lastDate = "";
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
@@ -73,7 +91,11 @@ export function ChatModal({ open, onClose, salonId, clientId, clientName, role, 
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          {messages.length === 0 ? (
+          {loading && messages.length === 0 ? (
+            <div className="text-center py-10">
+              <div className="text-sm text-gray-400">Yuklanmoqda...</div>
+            </div>
+          ) : messages.length === 0 ? (
             <div className="text-center py-10">
               <svg className="w-10 h-10 text-gray-200 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 20.105V4.875A2.25 2.25 0 016 2.625h12A2.25 2.25 0 0120.25 4.875v10.5A2.25 2.25 0 0118 17.625H6.75L3.75 20.105z" />
@@ -83,17 +105,30 @@ export function ChatModal({ open, onClose, salonId, clientId, clientName, role, 
           ) : (
             messages.map((m) => {
               const isMine = m.from === role;
+              const msgDate = formatDate(m.timestamp);
+              let showDate = false;
+              if (msgDate !== lastDate) {
+                showDate = true;
+                lastDate = msgDate;
+              }
               return (
-                <div key={m.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-[75%] px-3 py-2 rounded-lg text-sm ${
-                    isMine
-                      ? "bg-gray-900 text-white rounded-br-sm"
-                      : "bg-gray-100 text-gray-800 rounded-bl-sm"
-                  }`}>
-                    <p className="whitespace-pre-wrap break-words">{m.text}</p>
-                    <p className={`text-[10px] mt-1 ${isMine ? "text-gray-400" : "text-gray-400"}`}>
-                      {formatTime(m.timestamp)}
-                    </p>
+                <div key={m.id}>
+                  {showDate && (
+                    <div className="text-center py-2">
+                      <span className="text-[10px] text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">{msgDate}</span>
+                    </div>
+                  )}
+                  <div className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
+                    <div className={`max-w-[75%] px-3 py-2 rounded-lg text-sm ${
+                      isMine
+                        ? "bg-gray-900 text-white rounded-br-sm"
+                        : "bg-gray-100 text-gray-800 rounded-bl-sm"
+                    }`}>
+                      <p className="whitespace-pre-wrap break-words">{m.text}</p>
+                      <p className="text-[10px] mt-1 text-gray-400">
+                        {formatTime(m.timestamp)} {m.read ? "✓✓" : "✓"}
+                      </p>
+                    </div>
                   </div>
                 </div>
               );
