@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
-import { Modal } from "@/components/Modal";
 import type { SalonService, SalonBrief } from "@/types";
 
 export default function SalonServicesPage() {
@@ -15,14 +14,6 @@ export default function SalonServicesPage() {
   const [services, setServices] = useState<SalonService[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
-  const [modalOpen, setModalOpen] = useState(false);
-  const [selectedService, setSelectedService] = useState<SalonService | null>(null);
-  const [date, setDate] = useState("");
-  const [notes, setNotes] = useState("");
-  const [bookingLoading, setBookingLoading] = useState(false);
-  const [bookingError, setBookingError] = useState("");
-  const [bookingSuccess, setBookingSuccess] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -37,34 +28,6 @@ export default function SalonServicesPage() {
       .catch((err) => setError(err instanceof Error ? err.message : "Xatolik yuz berdi"))
       .finally(() => setLoading(false));
   }, [salonId]);
-
-  function openBooking(service: SalonService) {
-    setSelectedService(service);
-    setDate("");
-    setNotes("");
-    setBookingError("");
-    setBookingSuccess(false);
-    setModalOpen(true);
-  }
-
-  async function handleBooking(e: React.FormEvent) {
-    e.preventDefault();
-    if (!selectedService || !date) return;
-    setBookingLoading(true);
-    setBookingError("");
-    try {
-      await api.post(`/salons/${salonId}/bookings`, {
-        serviceId: selectedService.id,
-        date,
-        notes: notes || undefined,
-      });
-      setBookingSuccess(true);
-    } catch (err: unknown) {
-      setBookingError(err instanceof Error ? err.message : "Xatolik yuz berdi");
-    } finally {
-      setBookingLoading(false);
-    }
-  }
 
   if (loading) {
     return (
@@ -100,7 +63,7 @@ export default function SalonServicesPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
                 </svg>
               </div>
-              <div>
+              <div className="flex-1">
                 <h1 className="text-lg font-semibold text-gray-900">{salon.salonName}</h1>
                 <p className="text-sm text-gray-500 mt-0.5">{salon.ownerName}</p>
                 <div className="flex items-center gap-1.5 mt-1">
@@ -146,91 +109,17 @@ export default function SalonServicesPage() {
                     </span>
                   </div>
                 </div>
-                <button
-                  onClick={() => openBooking(service)}
+                <Link
+                  href={`/mijoz/salon/${salonId}/zakaz?service=${service.id}`}
                   className="ml-4 px-5 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition-colors shrink-0"
                 >
                   Zakaz berish
-                </button>
+                </Link>
               </div>
             </div>
           ))}
         </div>
       )}
-
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Zakaz berish">
-        {bookingSuccess ? (
-          <div className="text-center py-6">
-            <div className="w-12 h-12 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-              </svg>
-            </div>
-            <p className="text-sm font-medium text-gray-900 mb-1">Buyurtma qabul qilindi!</p>
-            <p className="text-xs text-gray-500 mb-4">Salon egasi sizning buyurtmangizni ko&apos;radi</p>
-            <Link
-              href="/mijoz/buyurtmalarim"
-              className="inline-block px-6 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition-colors"
-              onClick={() => setModalOpen(false)}
-            >
-              Mening buyurtmalarim
-            </Link>
-          </div>
-        ) : (
-          <form onSubmit={handleBooking} className="space-y-4">
-            {selectedService && (
-              <div className="bg-gray-50 rounded-lg p-3">
-                <p className="text-sm font-medium text-gray-900">{selectedService.name}</p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {selectedService.durationMins} daqiqa &middot; {selectedService.price.toLocaleString("uz-UZ")} so&apos;m
-                </p>
-              </div>
-            )}
-
-            {bookingError && (
-              <div className="bg-red-50 text-red-600 text-sm px-4 py-3 rounded-md border border-red-100">
-                {bookingError}
-              </div>
-            )}
-
-            <div>
-              <label htmlFor="booking-date" className="block text-sm font-medium text-gray-700 mb-1">
-                Sana va vaqt
-              </label>
-              <input
-                id="booking-date"
-                type="datetime-local"
-                required
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full px-3 py-2.5 text-sm bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-900 focus:border-gray-900 transition-colors"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="booking-notes" className="block text-sm font-medium text-gray-700 mb-1">
-                Eslatma <span className="text-gray-400 font-normal">(ixtiyoriy)</span>
-              </label>
-              <textarea
-                id="booking-notes"
-                rows={3}
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                className="w-full px-3 py-2.5 text-sm bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-900 focus:border-gray-900 transition-colors resize-none"
-                placeholder="Qo'shimcha ma'lumot..."
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={bookingLoading}
-              className="w-full py-2.5 px-4 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {bookingLoading ? "Yuborilmoqda..." : "Tasdiqlash"}
-            </button>
-          </form>
-        )}
-      </Modal>
     </div>
   );
 }

@@ -104,7 +104,7 @@ export default function MijozSalonsPage() {
                   Xizmatlarni ko&apos;rish
                 </Link>
                 <Link
-                  href={`/mijoz/salon/${salon.id}`}
+                  href={`/mijoz/salon/${salon.id}/zakaz`}
                   className="px-4 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition-colors"
                 >
                   Zakaz berish

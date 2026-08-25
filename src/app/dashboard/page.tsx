@@ -2,28 +2,50 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import type { DashboardStats, Booking } from "@/types";
+
 const statusLabels: Record<string, string> = {
+  PENDING: "Kutilmoqda",
+  CONFIRMED: "Tasdiqlangan",
+  DONE: "Tugallangan",
+  CANCELLED: "Bekor qilingan",
   pending: "Kutilmoqda",
   confirmed: "Tasdiqlangan",
   completed: "Tugallangan",
   cancelled: "Bekor qilingan",
 };
+
 const statusColors: Record<string, string> = {
+  PENDING: "bg-amber-50 text-amber-700 border border-amber-200",
+  CONFIRMED: "bg-blue-50 text-blue-700 border border-blue-200",
+  DONE: "bg-green-50 text-green-700 border border-green-200",
+  CANCELLED: "bg-gray-100 text-gray-500 border border-gray-200",
   pending: "bg-amber-50 text-amber-700 border border-amber-200",
   confirmed: "bg-blue-50 text-blue-700 border border-blue-200",
   completed: "bg-green-50 text-green-700 border border-green-200",
   cancelled: "bg-gray-100 text-gray-500 border border-gray-200",
 };
+
+function getClientName(b: Booking): string {
+  if (b.client?.fullName) return b.client.fullName;
+  return `Mijoz #${b.clientId}`;
+}
+
+function getPhone(b: Booking): string | null {
+  if (b.client?.phone) return b.client.phone;
+  return null;
+}
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+
   useEffect(() => {
     Promise.all([
       api.get<DashboardStats>("/dashboard/stats").catch(() => null),
       api
         .get<{ navbatlar: Booking[]; soni: number }>("/bookings?limit=10&sort=date")
-        .catch(() => ({ navbatlar: [], soni: 0 })),
+        .catch(() => ({ navbatlar: [] as Booking[], soni: 0 })),
     ])
       .then(([s, b]) => {
         setStats(s);
@@ -31,6 +53,7 @@ export default function DashboardPage() {
       })
       .finally(() => setLoading(false));
   }, []);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -38,12 +61,14 @@ export default function DashboardPage() {
       </div>
     );
   }
+
   const statCards = [
     { label: "Jami mijozlar", value: stats?.totalClients ?? 0 },
     { label: "Xizmatlar", value: stats?.totalServices ?? 0 },
     { label: "Jami navbatlar", value: stats?.totalBookings ?? 0 },
     { label: "Bugun", value: stats?.todayBookings ?? 0 },
   ];
+
   return (
     <div>
       <div className="mb-8">
@@ -65,7 +90,7 @@ export default function DashboardPage() {
       </div>
       <div className="bg-white border border-gray-100 rounded-lg">
         <div className="px-5 py-4 border-b border-gray-100">
-          <h2 className="text-sm font-semibold text-gray-900">Navbatlar</h2>
+          <h2 className="text-sm font-semibold text-gray-900">Oxirgi navbatlar</h2>
         </div>
         {bookings.length === 0 ? (
           <div className="px-5 py-8 text-center text-sm text-gray-500">
@@ -74,26 +99,45 @@ export default function DashboardPage() {
         ) : (
           <div className="divide-y divide-gray-50">
             {bookings.map((b) => {
-              const statusKey = (b.status || "").toLowerCase();
+              const statusKey = b.status || "";
+              const phone = getPhone(b);
               return (
                 <div
                   key={b.id}
                   className="px-5 py-3 flex items-center justify-between gap-4"
                 >
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-gray-900 truncate">
-                      {b.client?.fullName || b.clientId}
+                      {getClientName(b)}
                     </p>
                     <p className="text-xs text-gray-500">
                       {b.service?.name || b.serviceId} &middot;{" "}
-                      {new Date(b.date).toLocaleDateString("uz-UZ")}
+                      {new Date(b.date).toLocaleDateString("uz-UZ", {
+                        month: "short",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
                     </p>
                   </div>
-                  <span
-                    className={`text-xs font-medium px-2.5 py-1 rounded-full whitespace-nowrap ${statusColors[statusKey] || ""}`}
-                  >
-                    {statusLabels[statusKey] || b.status}
-                  </span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {phone && (
+                      <a
+                        href={`sms:${phone}`}
+                        className="text-gray-400 hover:text-gray-600 transition-colors"
+                        title="SMS yozish"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 20.105V4.875A2.25 2.25 0 016 2.625h12A2.25 2.25 0 0120.25 4.875v10.5A2.25 2.25 0 0118 17.625H6.75L3.75 20.105z" />
+                        </svg>
+                      </a>
+                    )}
+                    <span
+                      className={`text-xs font-medium px-2.5 py-1 rounded-full whitespace-nowrap ${statusColors[statusKey] || ""}`}
+                    >
+                      {statusLabels[statusKey] || statusKey}
+                    </span>
+                  </div>
                 </div>
               );
             })}

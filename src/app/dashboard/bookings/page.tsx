@@ -21,6 +21,25 @@ const statusColors: Record<string, string> = {
 
 const statusOptions: Booking["status"][] = ["PENDING", "CONFIRMED", "DONE", "CANCELLED"];
 
+function isBookingPast(b: Booking): boolean {
+  const end = new Date(b.date);
+  const dur = b.service?.durationMins || 30;
+  end.setMinutes(end.getMinutes() + dur);
+  return end.getTime() < Date.now();
+}
+
+function getPhone(b: Booking): string | null {
+  if (b.client?.phone) return b.client.phone;
+  if ((b as Record<string, unknown>).clientPhone) return (b as Record<string, string>).clientPhone;
+  return null;
+}
+
+function getClientName(b: Booking): string {
+  if (b.client?.fullName) return b.client.fullName;
+  if ((b as Record<string, unknown>).clientName) return (b as Record<string, string>).clientName;
+  return `Mijoz #${b.clientId}`;
+}
+
 export default function BookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -36,9 +55,9 @@ export default function BookingsPage() {
     setLoading(true);
     const q = filter ? `?status=${filter}` : "";
     Promise.all([
-      api.get<{ navbatlar: Booking[]; soni: number }>(`/bookings${q}`).catch(() => ({ navbatlar: [], soni: 0 })),
-      api.get<{ mijozlar: Client[]; soni: number }>("/clients").catch(() => ({ mijozlar: [], soni: 0 })),
-      api.get<{ xizmatlar: Service[]; soni: number }>("/services").catch(() => ({ xizmatlar: [], soni: 0 })),
+      api.get<{ navbatlar: Booking[]; soni: number }>(`/bookings${q}`).catch(() => ({ navbatlar: [] as Booking[], soni: 0 })),
+      api.get<{ mijozlar: Client[]; soni: number }>("/clients").catch(() => ({ mijozlar: [] as Client[], soni: 0 })),
+      api.get<{ xizmatlar: Service[]; soni: number }>("/services").catch(() => ({ xizmatlar: [] as Service[], soni: 0 })),
     ])
       .then(([b, c, s]) => {
         setBookings(b.navbatlar);
@@ -51,6 +70,19 @@ export default function BookingsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (bookings.length === 0) return;
+    bookings.forEach((b) => {
+      if ((b.status === "PENDING" || b.status === "CONFIRMED") && isBookingPast(b)) {
+        api.put(`/bookings/${b.id}`, { status: "DONE" }).then(() => {
+          setBookings((prev) =>
+            prev.map((x) => (x.id === b.id ? { ...x, status: "DONE" as const } : x))
+          );
+        }).catch(() => {});
+      }
+    });
+  }, [bookings]);
 
   function openCreate() {
     setForm({ clientId: "", serviceId: "", date: "", notes: "" });
@@ -155,64 +187,142 @@ export default function BookingsPage() {
                     <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-5 py-3">Mijoz</th>
                     <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-5 py-3">Xizmat</th>
                     <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-5 py-3">Sana</th>
+                    <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-5 py-3">Narx</th>
                     <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-5 py-3">Holat</th>
                     <th className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider px-5 py-3">Amallar</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {bookings.map((b) => (
-                    <tr key={b.id} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="px-5 py-3 text-sm font-medium text-gray-900">{b.client?.fullName || b.clientId}</td>
-                      <td className="px-5 py-3 text-sm text-gray-600">{b.service?.name || b.serviceId}</td>
-                      <td className="px-5 py-3 text-sm text-gray-600">
-                        {new Date(b.date).toLocaleDateString("uz-UZ")}
-                      </td>
-                      <td className="px-5 py-3">
-                        <select
-                          value={b.status}
-                          onChange={(e) => updateStatus(b.id, e.target.value)}
-                          className={`text-xs font-medium px-2.5 py-1 rounded-full border-0 focus:ring-1 focus:ring-gray-900 cursor-pointer ${statusColors[b.status] || ""}`}
-                        >
-                          {statusOptions.map((s) => (
-                            <option key={s} value={s}>
-                              {statusLabels[s]}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-5 py-3 text-right">
-                        <button onClick={() => handleDelete(b.id)} className="text-sm text-red-500 hover:text-red-700">
-                          O&apos;chirish
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {bookings.map((b) => {
+                    const phone = getPhone(b);
+                    return (
+                      <tr key={b.id} className="hover:bg-gray-50/50 transition-colors">
+                        <td className="px-5 py-3">
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{getClientName(b)}</p>
+                            {phone && (
+                              <a
+                                href={`sms:${phone}`}
+                                className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 transition-colors mt-0.5"
+                              >
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 20.105V4.875A2.25 2.25 0 016 2.625h12A2.25 2.25 0 0120.25 4.875v10.5A2.25 2.25 0 0118 17.625H6.75L3.75 20.105z" />
+                                </svg>
+                                {phone}
+                              </a>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-5 py-3 text-sm text-gray-600">{b.service?.name || b.serviceId}</td>
+                        <td className="px-5 py-3 text-sm text-gray-600">
+                          {new Date(b.date).toLocaleDateString("uz-UZ", {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </td>
+                        <td className="px-5 py-3 text-sm font-medium text-gray-900">
+                          {b.price.toLocaleString("uz-UZ")} so&apos;m
+                        </td>
+                        <td className="px-5 py-3">
+                          <select
+                            value={b.status}
+                            onChange={(e) => updateStatus(b.id, e.target.value)}
+                            className={`text-xs font-medium px-2.5 py-1 rounded-full border-0 focus:ring-1 focus:ring-gray-900 cursor-pointer ${statusColors[b.status] || ""}`}
+                          >
+                            {statusOptions.map((s) => (
+                              <option key={s} value={s}>
+                                {statusLabels[s]}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-5 py-3 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {phone && (
+                              <a
+                                href={`sms:${phone}`}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 20.105V4.875A2.25 2.25 0 016 2.625h12A2.25 2.25 0 0120.25 4.875v10.5A2.25 2.25 0 0118 17.625H6.75L3.75 20.105z" />
+                                </svg>
+                                SMS
+                              </a>
+                            )}
+                            <button
+                              onClick={() => handleDelete(b.id)}
+                              className="text-xs text-red-500 hover:text-red-700 px-2 py-1.5"
+                            >
+                              O&apos;chirish
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
             <div className="lg:hidden divide-y divide-gray-50">
-              {bookings.map((b) => (
-                <div key={b.id} className="px-5 py-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-sm font-medium text-gray-900">{b.client?.fullName || b.clientId}</p>
-                    <button onClick={() => handleDelete(b.id)} className="text-xs text-red-500 hover:text-red-700">O&apos;chirish</button>
+              {bookings.map((b) => {
+                const phone = getPhone(b);
+                return (
+                  <div key={b.id} className="px-5 py-4">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-sm font-medium text-gray-900">{getClientName(b)}</p>
+                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusColors[b.status] || ""}`}>
+                        {statusLabels[b.status]}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mb-1">
+                      {b.service?.name || b.serviceId} &middot; {new Date(b.date).toLocaleDateString("uz-UZ", {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </p>
+                    <p className="text-xs font-medium text-gray-900 mb-2">
+                      {b.price.toLocaleString("uz-UZ")} so&apos;m
+                    </p>
+                    {b.notes && <p className="text-xs text-gray-400 mb-2">{b.notes}</p>}
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={b.status}
+                        onChange={(e) => updateStatus(b.id, e.target.value)}
+                        className={`text-xs font-medium px-2.5 py-1 rounded-full border-0 focus:ring-1 focus:ring-gray-900 cursor-pointer ${statusColors[b.status] || ""}`}
+                      >
+                        {statusOptions.map((s) => (
+                          <option key={s} value={s}>
+                            {statusLabels[s]}
+                          </option>
+                        ))}
+                      </select>
+                      {phone && (
+                        <a
+                          href={`sms:${phone}`}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 20.105V4.875A2.25 2.25 0 016 2.625h12A2.25 2.25 0 0120.25 4.875v10.5A2.25 2.25 0 0118 17.625H6.75L3.75 20.105z" />
+                          </svg>
+                          SMS
+                        </a>
+                      )}
+                      <button
+                        onClick={() => handleDelete(b.id)}
+                        className="text-xs text-red-500 hover:text-red-700 px-2 py-1.5"
+                      >
+                        O&apos;chirish
+                      </button>
+                    </div>
                   </div>
-                  <p className="text-xs text-gray-500 mb-2">
-                    {b.service?.name || b.serviceId} · {new Date(b.date).toLocaleDateString("uz-UZ")}
-                  </p>
-                  <select
-                    value={b.status}
-                    onChange={(e) => updateStatus(b.id, e.target.value)}
-                    className={`text-xs font-medium px-2.5 py-1 rounded-full border-0 focus:ring-1 focus:ring-gray-900 cursor-pointer ${statusColors[b.status] || ""}`}
-                  >
-                    {statusOptions.map((s) => (
-                      <option key={s} value={s}>
-                        {statusLabels[s]}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </>
         )}

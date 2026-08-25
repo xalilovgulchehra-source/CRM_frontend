@@ -56,8 +56,11 @@ export interface Booking {
   id: number;
   clientId: number;
   client?: Client;
+  clientName?: string;
+  clientPhone?: string;
   serviceId: number;
   service?: Service;
+  salonName?: string;
   date: string;
   status: "PENDING" | "CONFIRMED" | "DONE" | "CANCELLED";
   notes?: string;
