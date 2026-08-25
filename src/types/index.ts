@@ -4,6 +4,32 @@ export interface User {
   salonName: string;
   ownerName: string;
   phone: string;
+  role: "OWNER" | "CUSTOMER";
+  createdAt: string;
+}
+
+export interface SalonBrief {
+  id: number;
+  salonName: string;
+  ownerName: string;
+  phone: string;
+}
+
+export interface SalonService {
+  id: number;
+  name: string;
+  price: number;
+  durationMins: number;
+}
+
+export interface MyBooking {
+  id: number;
+  salonName: string;
+  serviceName: string;
+  date: string;
+  status: "PENDING" | "CONFIRMED" | "DONE" | "CANCELLED";
+  notes?: string;
+  price: number;
   createdAt: string;
 }
 
