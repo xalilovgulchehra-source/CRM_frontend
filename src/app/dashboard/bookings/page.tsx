@@ -5,8 +5,8 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { Modal } from "@/components/Modal";
 import { ChatModal } from "@/components/ChatModal";
-import { fetchChatMessages } from "@/lib/chat-store";
-import type { Booking, Client, Service, SalonBrief } from "@/types";
+import { getUnreadCount } from "@/lib/chat-store";
+import type { Booking, Client, Service } from "@/types";
 
 const statusLabels: Record<string, string> = {
   PENDING: "Kutilmoqda",
@@ -95,9 +95,8 @@ export default function BookingsPage() {
     const check = async () => {
       const map: Record<number, number> = {};
       for (const b of bookings) {
-        const msgs = await fetchChatMessages(b.id, "owner");
-        const unread = msgs.filter((m) => m.from === "customer" && !m.read).length;
-        if (unread > 0) map[b.id] = unread;
+        const count = await getUnreadCount(b.id);
+        if (count > 0) map[b.id] = count;
       }
       setUnreadMap(map);
     };

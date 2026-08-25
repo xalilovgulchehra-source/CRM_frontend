@@ -25,9 +25,9 @@ export function ChatModal({ open, onClose, bookingId, clientName, role, title }:
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadMessages = useCallback(async () => {
-    const msgs = await fetchChatMessages(bookingId, role);
+    const msgs = await fetchChatMessages(bookingId);
     setMessages(msgs);
-  }, [bookingId, role]);
+  }, [bookingId]);
 
   useEffect(() => {
     if (!open) {
@@ -35,16 +35,16 @@ export function ChatModal({ open, onClose, bookingId, clientName, role, title }:
       return;
     }
     setLoading(true);
-    markChatRead(bookingId, role).then(() => loadMessages()).then(() => setLoading(false));
+    markChatRead(bookingId).then(() => loadMessages()).then(() => setLoading(false));
     intervalRef.current = setInterval(loadMessages, 3000);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [open, bookingId, role, loadMessages]);
+  }, [open, bookingId, loadMessages]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length]);
+  }, [messages.length, open]);
 
   if (!open) return null;
 
@@ -53,19 +53,15 @@ export function ChatModal({ open, onClose, bookingId, clientName, role, title }:
     if (!text.trim()) return;
     const msg = text.trim();
     setText("");
-    setMessages((prev) => [
-      ...prev,
-      { id: "temp", from: role, text: msg, timestamp: Date.now(), read: false },
-    ]);
-    await sendChatMessage(bookingId, role, msg);
+    await sendChatMessage(bookingId, msg);
     await loadMessages();
   }
 
-  function formatTime(ts: number): string {
+  function formatTime(ts: string): string {
     return new Date(ts).toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" });
   }
 
-  function formatDate(ts: number): string {
+  function formatDate(ts: string): string {
     const d = new Date(ts);
     const today = new Date();
     if (d.toDateString() === today.toDateString()) return "Bugun";
@@ -104,7 +100,7 @@ export function ChatModal({ open, onClose, bookingId, clientName, role, title }:
             </div>
           ) : (
             messages.map((m) => {
-              const isMine = m.from === role;
+              const isMine = (role === "owner" && m.from_role === "owner") || (role === "customer" && m.from_role === "customer");
               const msgDate = formatDate(m.timestamp);
               let showDate = false;
               if (msgDate !== lastDate) {

@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
 import { ChatModal } from "@/components/ChatModal";
-import { fetchChatMessages } from "@/lib/chat-store";
+import { getUnreadCount } from "@/lib/chat-store";
 import type { MyBooking } from "@/types";
 
 const nav = [
@@ -58,8 +58,7 @@ function MijozShell({ children }: { children: React.ReactNode }) {
     const check = async () => {
       let total = 0;
       for (const b of myBookings) {
-        const msgs = await fetchChatMessages(b.id, "customer");
-        total += msgs.filter((m) => m.from === "owner" && !m.read).length;
+        total += await getUnreadCount(b.id);
       }
       if (!cancelled) setTotalUnread(total);
     };
