@@ -41,6 +41,12 @@ function MijozShell({ children }: { children: React.ReactNode }) {
   const [, setTick] = useState(0);
 
   useEffect(() => {
+    if (!loading && user && user.role === "OWNER") {
+      router.push("/dashboard");
+    }
+  }, [loading, user, router]);
+
+  useEffect(() => {
     if (!loading && !user) {
       router.push(`/login?redirect=${pathname}`);
     }

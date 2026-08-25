@@ -38,7 +38,14 @@ export default function BuyurtmalarimPage() {
     api
       .get<{ navbatlar: MyBooking[] }>("/my-bookings")
       .then((res) => setBookings(res.navbatlar || []))
-      .catch((err) => setError(err instanceof Error ? err.message : "Xatolik yuz berdi"))
+      .catch((err) => {
+        const msg = err instanceof Error ? err.message : "Xatolik yuz berdi";
+        if (msg.includes("403") || msg.includes("Faqat mijozlar")) {
+          setError("Tizimga mijoz sifatida kiring");
+        } else {
+          setError(msg);
+        }
+      })
       .finally(() => setLoading(false));
   }, []);
 
