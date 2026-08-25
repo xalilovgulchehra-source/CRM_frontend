@@ -18,7 +18,7 @@ export default function LoginPage() {
     try {
       const res = await api.post<AuthResponse>("/auth/login", { email, password });
       localStorage.setItem("token", res.token);
-      window.location.href = res.user.role === "OWNER" ? "/dashboard" : "/mijoz";
+      window.location.href = res.foydalanuvchi.role === "OWNER" ? "/dashboard" : "/mijoz";
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Xatolik yuz berdi");
     } finally {

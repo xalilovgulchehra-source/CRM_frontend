@@ -72,5 +72,5 @@ export interface DashboardStats {
 
 export interface AuthResponse {
   token: string;
-  user: User;
+  foydalanuvchi: User;
 }
