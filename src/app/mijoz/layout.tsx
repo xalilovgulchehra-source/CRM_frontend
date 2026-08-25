@@ -154,9 +154,27 @@ function MijozShell({ children }: { children: React.ReactNode }) {
 
         <div className="px-3 py-4 border-t border-gray-100">
           <div className="px-3 mb-2">
-            <p className="text-sm font-medium text-gray-900 truncate">
-              {user.fullName || user.ownerName || "Mijoz"}
-            </p>
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium text-gray-900 truncate">
+                {user.fullName || user.ownerName || "Mijoz"}
+              </p>
+              {salonLinks.length > 0 && (
+                <button
+                  onClick={() => openChatFor(salonLinks[0])}
+                  className="relative shrink-0 p-1 text-gray-400 hover:text-gray-700 transition-colors rounded-md hover:bg-gray-100"
+                  title="Chat"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 20.105V4.875A2.25 2.25 0 016 2.625h12A2.25 2.25 0 0120.25 4.875v10.5A2.25 2.25 0 0118 17.625H6.75L3.75 20.105z" />
+                  </svg>
+                  {totalUnread > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-0.5 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                      {totalUnread}
+                    </span>
+                  )}
+                </button>
+              )}
+            </div>
             <p className="text-xs text-gray-500 truncate">{user.email}</p>
           </div>
           <button
@@ -186,23 +204,6 @@ function MijozShell({ children }: { children: React.ReactNode }) {
 
         <main className="flex-1 p-4 lg:p-8 overflow-auto">{children}</main>
       </div>
-
-      {totalUnread > 0 && (
-        <button
-          onClick={() => {
-            if (salonLinks.length === 1) openChatFor(salonLinks[0]);
-            else if (salonLinks.length > 1) openChatFor(salonLinks[0]);
-          }}
-          className="fixed bottom-6 right-6 z-50 w-14 h-14 bg-gray-900 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-800 transition-colors"
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 20.105V4.875A2.25 2.25 0 016 2.625h12A2.25 2.25 0 0120.25 4.875v10.5A2.25 2.25 0 0118 17.625H6.75L3.75 20.105z" />
-          </svg>
-          <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-            {totalUnread}
-          </span>
-        </button>
-      )}
     </div>
   );
 }
