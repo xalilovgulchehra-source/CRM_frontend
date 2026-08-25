@@ -26,7 +26,8 @@ export interface SalonService {
 export interface MyBooking {
   id: number;
   salonName: string;
-  serviceName: string;
+  service?: { id: number; name: string; price: number; durationMins: number };
+  serviceName?: string;
   date: string;
   status: "PENDING" | "CONFIRMED" | "DONE" | "CANCELLED";
   notes?: string;
