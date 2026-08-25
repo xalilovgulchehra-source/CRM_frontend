@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { api } from "@/lib/api";
+import type { Booking } from "@/types";
 
 const nav = [
   { href: "/dashboard", label: "Dashboard", icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1" },
@@ -24,6 +26,42 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [newBooking, setNewBooking] = useState<Booking | null>(null);
+  const prevCountRef = useRef(0);
+
+  useEffect(() => {
+    const check = () => {
+      api.get<{ navbatlar: Booking[]; soni: number }>("/bookings?status=PENDING")
+        .then((res) => {
+          const count = res.soni || res.navbatlar?.length || 0;
+          if (count > prevCountRef.current && prevCountRef.current > 0) {
+            const latest = res.navbatlar?.[0];
+            if (latest) {
+              setNewBooking(latest);
+              try {
+                const audio = new Audio("data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbsGczIj2NysijaS0hTKrV3s1lPi48h8bKpW02JlOW0NzLa0MwN3e9xZ93Py9Lj8fJpXA+KFSTytjMeFIyOYKzwpaDSDZLjbPBj4NQNlSVyMd2fFhBYJO1vH+JYk13j6m0dINVUGiJp6xsf1dNb4OYp2J0V1h3fo2VXWBRXoGBf4ZNXF5pZGRkV1h5hIuKUE1YdXV1cW1vfJGQjFJMWm1xcXBsaHqNjIlLSE5tdnZ1cGtvfo6OiEhGTHB5eXZwbXB/j42HRUNIc316dnBtcX6PjodEQkZ0fnp2cG1xfo+Oh0NBRXR+enZwbXF+j42HQ0BFdH56dnBtcX6PjodDQEV0fnp2cG1xfo+Oh0NARXR+enZwbXF+j46HQ0BFdH56dnBtcX6PjodDQEV0fnp2cG1xfo+Oh0M=")
+                audio.volume = 0.3;
+                audio.play().catch(() => {});
+              } catch {}
+            }
+          }
+          prevCountRef.current = count;
+          setPendingCount(count);
+        })
+        .catch(() => {});
+    };
+    check();
+    const interval = setInterval(check, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (newBooking) {
+      const t = setTimeout(() => setNewBooking(null), 8000);
+      return () => clearTimeout(t);
+    }
+  }, [newBooking]);
 
   return (
     <div className="min-h-screen bg-[#FAFAFA] flex">
@@ -66,6 +104,11 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
               >
                 <Icon path={item.icon} />
                 {item.label}
+                {item.href === "/dashboard/bookings" && pendingCount > 0 && (
+                  <span className="ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 bg-amber-500 text-white text-[10px] font-bold rounded-full">
+                    {pendingCount > 99 ? "99+" : pendingCount}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -104,6 +147,37 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           </button>
           <h1 className="text-sm font-semibold text-gray-900">Sartaroshxona CRM</h1>
         </header>
+
+        {newBooking && (
+          <div className="bg-amber-50 border-b border-amber-200 px-4 lg:px-8 py-3 flex items-center gap-3 animate-slide-down">
+            <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center shrink-0">
+              <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+              </svg>
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-amber-900">Yangi zakaz keldi!</p>
+              <p className="text-xs text-amber-700 truncate">
+                {newBooking.service?.name || "Xizmat"} — {newBooking.date ? new Date(newBooking.date).toLocaleString("uz-UZ", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : ""}
+              </p>
+            </div>
+            <Link
+              href="/dashboard/bookings"
+              onClick={() => setNewBooking(null)}
+              className="px-3 py-1.5 bg-amber-600 text-white text-xs font-medium rounded-md hover:bg-amber-700 transition-colors shrink-0"
+            >
+              Ko&apos;rish
+            </Link>
+            <button
+              onClick={() => setNewBooking(null)}
+              className="text-amber-400 hover:text-amber-600 transition-colors shrink-0"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        )}
 
         <main className="flex-1 p-4 lg:p-8 overflow-auto">{children}</main>
       </div>
