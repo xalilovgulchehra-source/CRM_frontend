@@ -25,9 +25,9 @@ export function ChatModal({ open, onClose, bookingId, clientName, role, title }:
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadMessages = useCallback(async () => {
-    const msgs = await fetchChatMessages(bookingId);
+    const msgs = await fetchChatMessages(bookingId, role);
     setMessages(msgs);
-  }, [bookingId]);
+  }, [bookingId, role]);
 
   useEffect(() => {
     if (!open) {

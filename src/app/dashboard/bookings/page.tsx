@@ -95,7 +95,7 @@ export default function BookingsPage() {
     const check = async () => {
       const map: Record<number, number> = {};
       for (const b of bookings) {
-        const msgs = await fetchChatMessages(b.id);
+        const msgs = await fetchChatMessages(b.id, "owner");
         const unread = msgs.filter((m) => m.from === "customer" && !m.read).length;
         if (unread > 0) map[b.id] = unread;
       }

@@ -58,7 +58,7 @@ function MijozShell({ children }: { children: React.ReactNode }) {
     const check = async () => {
       let total = 0;
       for (const b of myBookings) {
-        const msgs = await fetchChatMessages(b.id);
+        const msgs = await fetchChatMessages(b.id, "customer");
         total += msgs.filter((m) => m.from === "owner" && !m.read).length;
       }
       if (!cancelled) setTotalUnread(total);
