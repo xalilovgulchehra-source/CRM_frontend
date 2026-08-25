@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use, useRef } from "react";
+import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import type { SalonService, SalonBrief } from "@/types";
@@ -13,11 +13,7 @@ export default function ZakazPage({ params }: { params: Promise<{ id: string }> 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const [selectedService, setSelectedService] = useState<SalonService | null>(null);
-  const [serviceName, setServiceName] = useState("");
-  const [showDropdown, setShowDropdown] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
+  const [selectedServiceId, setSelectedServiceId] = useState<number | null>(null);
   const [date, setDate] = useState("");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -38,37 +34,17 @@ export default function ZakazPage({ params }: { params: Promise<{ id: string }> 
       .finally(() => setLoading(false));
   }, [salonId]);
 
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setShowDropdown(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const filteredServices = services.filter((s) =>
-    s.name.toLowerCase().includes(serviceName.toLowerCase())
-  );
-
-  function selectService(service: SalonService) {
-    setSelectedService(service);
-    setServiceName(service.name);
-    setShowDropdown(false);
-  }
-
-  const canSubmit = selectedService && date && !submitting;
+  const selectedService = services.find((s) => s.id === selectedServiceId) || null;
+  const canSubmit = selectedServiceId && date && !submitting;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!canSubmit) return;
-
     setSubmitting(true);
     setSubmitError("");
     try {
       await api.post(`/salons/${salonId}/bookings`, {
-        serviceId: selectedService.id,
+        serviceId: selectedServiceId,
         date,
         notes: notes || undefined,
       });
@@ -106,19 +82,13 @@ export default function ZakazPage({ params }: { params: Promise<{ id: string }> 
         </div>
         <h1 className="text-xl font-semibold text-gray-900 mb-2">Buyurtma qabul qilindi!</h1>
         <p className="text-sm text-gray-500 mb-8">
-          {salon?.salonName} saloniga buyurtma muvaffaqiyatli yuborildi. Salon egasi siz bilan bog&apos;lanadi.
+          {salon?.salonName} saloniga buyurtma muvaffaqiyatli yuborildi.
         </p>
         <div className="flex items-center justify-center gap-3">
-          <Link
-            href="/mijoz/buyurtmalarim"
-            className="px-6 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition-colors"
-          >
+          <Link href="/mijoz/buyurtmalarim" className="px-6 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition-colors">
             Buyurtmalarim
           </Link>
-          <Link
-            href="/mijoz"
-            className="px-6 py-2.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 transition-colors"
-          >
+          <Link href="/mijoz" className="px-6 py-2.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 transition-colors">
             Salonlar
           </Link>
         </div>
@@ -162,54 +132,34 @@ export default function ZakazPage({ params }: { params: Promise<{ id: string }> 
             </div>
           )}
 
-          <div className="relative" ref={dropdownRef}>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Xizmatni tanlang *</label>
-            <div className="relative">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-              </svg>
-              <input
-                type="text"
-                value={serviceName}
-                onChange={(e) => {
-                  setServiceName(e.target.value);
-                  setSelectedService(null);
-                  setShowDropdown(true);
-                }}
-                onFocus={() => setShowDropdown(true)}
-                placeholder="Xizmat nomini kiriting..."
-                className="w-full pl-10 pr-4 py-2.5 text-sm bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-900 focus:border-gray-900 transition-colors"
-              />
-            </div>
-            {showDropdown && filteredServices.length > 0 && (
-              <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-48 overflow-y-auto">
-                {filteredServices.map((service) => (
-                  <button
-                    key={service.id}
-                    type="button"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      selectService(service);
-                    }}
-                    className={`w-full text-left px-4 py-3 text-sm hover:bg-gray-50 transition-colors ${
-                      selectedService?.id === service.id ? "bg-gray-900 text-white" : ""
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className={selectedService?.id === service.id ? "text-white" : "text-gray-900"}>{service.name}</span>
-                      <span className={`text-xs ${selectedService?.id === service.id ? "text-gray-300" : "text-gray-500"}`}>
-                        {service.durationMins} daq · {service.price.toLocaleString("uz-UZ")} so&apos;m
-                      </span>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-3">Xizmatni tanlang *</label>
+            <div className="space-y-2">
+              {services.map((service) => (
+                <button
+                  key={service.id}
+                  type="button"
+                  onClick={() => setSelectedServiceId(service.id)}
+                  className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
+                    selectedServiceId === service.id
+                      ? "border-gray-900 bg-gray-900 text-white"
+                      : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">{service.name}</p>
+                      <p className={`text-xs mt-0.5 ${selectedServiceId === service.id ? "text-gray-300" : "text-gray-500"}`}>
+                        {service.durationMins} daqiqa
+                      </p>
                     </div>
-                  </button>
-                ))}
-              </div>
-            )}
-            {showDropdown && serviceName && filteredServices.length === 0 && (
-              <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg px-4 py-3">
-                <p className="text-sm text-gray-400">Hech narsa topilmadi</p>
-              </div>
-            )}
+                    <p className={`text-sm font-semibold ${selectedServiceId === service.id ? "text-white" : "text-gray-900"}`}>
+                      {service.price.toLocaleString("uz-UZ")} so&apos;m
+                    </p>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
 
           {selectedService && (
