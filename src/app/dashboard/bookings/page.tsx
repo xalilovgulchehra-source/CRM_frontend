@@ -29,15 +29,11 @@ function isBookingPast(b: Booking): boolean {
 }
 
 function getPhone(b: Booking): string | null {
-  if (b.client?.phone) return b.client.phone;
-  if ((b as Record<string, unknown>).clientPhone) return (b as Record<string, string>).clientPhone;
-  return null;
+  return b.client?.phone || b.clientPhone || null;
 }
 
 function getClientName(b: Booking): string {
-  if (b.client?.fullName) return b.client.fullName;
-  if ((b as Record<string, unknown>).clientName) return (b as Record<string, string>).clientName;
-  return `Mijoz #${b.clientId}`;
+  return b.client?.fullName || b.clientName || `Mijoz #${b.clientId}`;
 }
 
 export default function BookingsPage() {
