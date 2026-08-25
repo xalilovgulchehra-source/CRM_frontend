@@ -19,7 +19,8 @@ async function request<T>(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${API_URL}${endpoint}`, {
+  const url = endpoint.endsWith("/") ? `${API_URL}${endpoint}` : `${API_URL}${endpoint}/`;
+  const res = await fetch(url, {
     ...options,
     headers,
   });
