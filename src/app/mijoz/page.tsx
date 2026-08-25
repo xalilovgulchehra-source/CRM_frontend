@@ -12,8 +12,8 @@ export default function MijozSalonsPage() {
 
   useEffect(() => {
     api
-      .get<SalonBrief[]>("/salons")
-      .then(setSalons)
+      .get<{ salonlar: SalonBrief[] }>("/salons")
+      .then((res) => setSalons(res.salonlar || []))
       .catch((err) => setError(err instanceof Error ? err.message : "Xatolik yuz berdi"))
       .finally(() => setLoading(false));
   }, []);

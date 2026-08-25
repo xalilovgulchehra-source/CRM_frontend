@@ -30,8 +30,8 @@ export default function BuyurtmalarimPage() {
 
   useEffect(() => {
     api
-      .get<MyBooking[]>("/my-bookings")
-      .then(setBookings)
+      .get<{ navbatlar: MyBooking[] }>("/my-bookings")
+      .then((res) => setBookings(res.navbatlar || []))
       .catch((err) => setError(err instanceof Error ? err.message : "Xatolik yuz berdi"))
       .finally(() => setLoading(false));
   }, []);

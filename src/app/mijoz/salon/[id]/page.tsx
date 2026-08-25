@@ -26,8 +26,8 @@ export default function SalonServicesPage() {
 
   useEffect(() => {
     api
-      .get<SalonService[]>(`/salons/${salonId}/services`)
-      .then(setServices)
+      .get<{ xizmatlar: SalonService[] }>(`/salons/${salonId}/services`)
+      .then((res) => setServices(res.xizmatlar || []))
       .catch((err) => setError(err instanceof Error ? err.message : "Xatolik yuz berdi"))
       .finally(() => setLoading(false));
   }, [salonId]);
