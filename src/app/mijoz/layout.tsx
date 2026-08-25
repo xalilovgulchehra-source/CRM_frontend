@@ -4,6 +4,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
+import { api } from "@/lib/api";
+import { ChatModal } from "@/components/ChatModal";
+import { getAllUnreadForCustomer } from "@/lib/chat-store";
+import type { MyBooking } from "@/types";
 
 const nav = [
   { href: "/mijoz", label: "Salonlar", icon: "M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" },
@@ -19,17 +23,56 @@ function Icon({ path }: { path: string }) {
   );
 }
 
+interface SalonLink {
+  salonId: number;
+  clientId: number;
+  salonName: string;
+}
+
 function MijozShell({ children }: { children: React.ReactNode }) {
   const { user, loading, logout } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [salonLinks, setSalonLinks] = useState<SalonLink[]>([]);
+  const [totalUnread, setTotalUnread] = useState(0);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [activeSalon, setActiveSalon] = useState<SalonLink | null>(null);
+  const [, setTick] = useState(0);
 
   useEffect(() => {
     if (!loading && !user) {
       router.push(`/login?redirect=${pathname}`);
     }
   }, [loading, user, router, pathname]);
+
+  useEffect(() => {
+    if (!user) return;
+    api.get<{ navbatlar: MyBooking[] }>("/my-bookings").then((res) => {
+      const links: SalonLink[] = [];
+      const seen = new Set<string>();
+      for (const b of res.navbatlar || []) {
+        const key = `${b.salonId}_${user.id}`;
+        if (!seen.has(key) && b.salonId) {
+          seen.add(key);
+          links.push({ salonId: b.salonId, clientId: user.id, salonName: b.salonName || "Salon" });
+        }
+      }
+      setSalonLinks(links);
+    }).catch(() => {});
+  }, [user]);
+
+  useEffect(() => {
+    const check = () => {
+      const unread = getAllUnreadForCustomer();
+      setTotalUnread(unread.reduce((s, u) => s + u.count, 0));
+    };
+    check();
+    const handler = () => { check(); setTick((t) => t + 1); };
+    window.addEventListener("chat-new-message", handler);
+    const interval = setInterval(check, 3000);
+    return () => { window.removeEventListener("chat-new-message", handler); clearInterval(interval); };
+  }, []);
 
   if (loading) {
     return (
@@ -41,12 +84,29 @@ function MijozShell({ children }: { children: React.ReactNode }) {
 
   if (!user) return null;
 
+  function openChatFor(s: SalonLink) {
+    setActiveSalon(s);
+    setChatOpen(true);
+  }
+
   return (
     <div className="min-h-screen bg-[#FAFAFA] flex">
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-black/30 z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {activeSalon && (
+        <ChatModal
+          open={chatOpen}
+          onClose={() => setChatOpen(false)}
+          salonId={activeSalon.salonId}
+          clientId={activeSalon.clientId}
+          clientName={activeSalon.salonName}
+          role="customer"
+          title={activeSalon.salonName}
         />
       )}
 
@@ -120,6 +180,23 @@ function MijozShell({ children }: { children: React.ReactNode }) {
 
         <main className="flex-1 p-4 lg:p-8 overflow-auto">{children}</main>
       </div>
+
+      {totalUnread > 0 && (
+        <button
+          onClick={() => {
+            if (salonLinks.length === 1) openChatFor(salonLinks[0]);
+            else if (salonLinks.length > 1) openChatFor(salonLinks[0]);
+          }}
+          className="fixed bottom-6 right-6 z-50 w-14 h-14 bg-gray-900 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-800 transition-colors"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 20.105V4.875A2.25 2.25 0 016 2.625h12A2.25 2.25 0 0120.25 4.875v10.5A2.25 2.25 0 0118 17.625H6.75L3.75 20.105z" />
+          </svg>
+          <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+            {totalUnread}
+          </span>
+        </button>
+      )}
     </div>
   );
 }

@@ -121,17 +121,6 @@ export default function DashboardPage() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    {phone && (
-                      <a
-                        href={`sms:${phone}`}
-                        className="text-gray-400 hover:text-gray-600 transition-colors"
-                        title="SMS yozish"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 20.105V4.875A2.25 2.25 0 016 2.625h12A2.25 2.25 0 0120.25 4.875v10.5A2.25 2.25 0 0118 17.625H6.75L3.75 20.105z" />
-                        </svg>
-                      </a>
-                    )}
                     <span
                       className={`text-xs font-medium px-2.5 py-1 rounded-full whitespace-nowrap ${statusColors[statusKey] || ""}`}
                     >

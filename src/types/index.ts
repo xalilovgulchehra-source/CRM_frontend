@@ -25,6 +25,7 @@ export interface SalonService {
 
 export interface MyBooking {
   id: number;
+  salonId?: number;
   salonName: string;
   service?: { id: number; name: string; price: number; durationMins: number };
   serviceName?: string;

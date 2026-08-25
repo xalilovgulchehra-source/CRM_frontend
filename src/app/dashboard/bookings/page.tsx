@@ -2,8 +2,11 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 import { Modal } from "@/components/Modal";
-import type { Booking, Client, Service } from "@/types";
+import { ChatModal } from "@/components/ChatModal";
+import { getUnreadCount } from "@/lib/chat-store";
+import type { Booking, Client, Service, SalonBrief } from "@/types";
 
 const statusLabels: Record<string, string> = {
   PENDING: "Kutilmoqda",
@@ -28,24 +31,38 @@ function isBookingPast(b: Booking): boolean {
   return end.getTime() < Date.now();
 }
 
-function getPhone(b: Booking): string | null {
-  return b.client?.phone || b.clientPhone || null;
-}
-
 function getClientName(b: Booking): string {
   return b.client?.fullName || b.clientName || `Mijoz #${b.clientId}`;
 }
 
+function getPhone(b: Booking): string | null {
+  return b.client?.phone || b.clientPhone || null;
+}
+
 export default function BookingsPage() {
+  const { user } = useAuth();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [services, setServices] = useState<Service[]>([]);
+  const [salonId, setSalonId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState({ clientId: "", serviceId: "", date: "", notes: "" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<Booking["status"] | "">("");
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatClientId, setChatClientId] = useState(0);
+  const [chatClientName, setChatClientName] = useState("");
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    if (!user) return;
+    api.get<{ salonlar: SalonBrief[] }>("/salons").then((res) => {
+      const found = res.salonlar.find((s) => s.ownerName === user.ownerName && s.salonName === user.salonName);
+      if (found) setSalonId(found.id);
+    }).catch(() => {});
+  }, [user]);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -79,6 +96,20 @@ export default function BookingsPage() {
       }
     });
   }, [bookings]);
+
+  useEffect(() => {
+    const handler = () => setTick((t) => t + 1);
+    window.addEventListener("chat-new-message", handler);
+    const interval = setInterval(() => setTick((t) => t + 1), 3000);
+    return () => { window.removeEventListener("chat-new-message", handler); clearInterval(interval); };
+  }, []);
+
+  function openChat(clientId: number, clientName: string) {
+    if (!salonId) return;
+    setChatClientId(clientId);
+    setChatClientName(clientName);
+    setChatOpen(true);
+  }
 
   function openCreate() {
     setForm({ clientId: "", serviceId: "", date: "", notes: "" });
@@ -117,9 +148,7 @@ export default function BookingsPage() {
     try {
       await api.put(`/bookings/${id}`, { status });
       load();
-    } catch {
-      // silent
-    }
+    } catch {}
   }
 
   async function handleDelete(id: number) {
@@ -127,13 +156,23 @@ export default function BookingsPage() {
     try {
       await api.delete(`/bookings/${id}`);
       load();
-    } catch {
-      // silent
-    }
+    } catch {}
   }
 
   return (
     <div>
+      {salonId && chatOpen && (
+        <ChatModal
+          open={chatOpen}
+          onClose={() => setChatOpen(false)}
+          salonId={salonId}
+          clientId={chatClientId}
+          clientName={chatClientName}
+          role="owner"
+          title={chatClientName}
+        />
+      )}
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">Navbatlar</h1>
@@ -190,22 +229,14 @@ export default function BookingsPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {bookings.map((b) => {
-                    const phone = getPhone(b);
+                    const unread = salonId ? getUnreadCount(salonId, b.clientId, "owner") : 0;
                     return (
                       <tr key={b.id} className="hover:bg-gray-50/50 transition-colors">
                         <td className="px-5 py-3">
                           <div>
                             <p className="text-sm font-medium text-gray-900">{getClientName(b)}</p>
-                            {phone && (
-                              <a
-                                href={`sms:${phone}`}
-                                className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 transition-colors mt-0.5"
-                              >
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 20.105V4.875A2.25 2.25 0 016 2.625h12A2.25 2.25 0 0120.25 4.875v10.5A2.25 2.25 0 0118 17.625H6.75L3.75 20.105z" />
-                                </svg>
-                                {phone}
-                              </a>
+                            {getPhone(b) && (
+                              <p className="text-xs text-gray-400 mt-0.5">{getPhone(b)}</p>
                             )}
                           </div>
                         </td>
@@ -229,25 +260,26 @@ export default function BookingsPage() {
                             className={`text-xs font-medium px-2.5 py-1 rounded-full border-0 focus:ring-1 focus:ring-gray-900 cursor-pointer ${statusColors[b.status] || ""}`}
                           >
                             {statusOptions.map((s) => (
-                              <option key={s} value={s}>
-                                {statusLabels[s]}
-                              </option>
+                              <option key={s} value={s}>{statusLabels[s]}</option>
                             ))}
                           </select>
                         </td>
                         <td className="px-5 py-3 text-right">
                           <div className="flex items-center justify-end gap-2">
-                            {phone && (
-                              <a
-                                href={`sms:${phone}`}
-                                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors"
-                              >
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 20.105V4.875A2.25 2.25 0 016 2.625h12A2.25 2.25 0 0120.25 4.875v10.5A2.25 2.25 0 0118 17.625H6.75L3.75 20.105z" />
-                                </svg>
-                                SMS
-                              </a>
-                            )}
+                            <button
+                              onClick={() => openChat(b.clientId, getClientName(b))}
+                              className="relative inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 20.105V4.875A2.25 2.25 0 016 2.625h12A2.25 2.25 0 0120.25 4.875v10.5A2.25 2.25 0 0118 17.625H6.75L3.75 20.105z" />
+                              </svg>
+                              Chat
+                              {unread > 0 && (
+                                <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                                  {unread}
+                                </span>
+                              )}
+                            </button>
                             <button
                               onClick={() => handleDelete(b.id)}
                               className="text-xs text-red-500 hover:text-red-700 px-2 py-1.5"
@@ -264,7 +296,7 @@ export default function BookingsPage() {
             </div>
             <div className="lg:hidden divide-y divide-gray-50">
               {bookings.map((b) => {
-                const phone = getPhone(b);
+                const unread = salonId ? getUnreadCount(salonId, b.clientId, "owner") : 0;
                 return (
                   <div key={b.id} className="px-5 py-4">
                     <div className="flex items-center justify-between mb-1">
@@ -293,22 +325,23 @@ export default function BookingsPage() {
                         className={`text-xs font-medium px-2.5 py-1 rounded-full border-0 focus:ring-1 focus:ring-gray-900 cursor-pointer ${statusColors[b.status] || ""}`}
                       >
                         {statusOptions.map((s) => (
-                          <option key={s} value={s}>
-                            {statusLabels[s]}
-                          </option>
+                          <option key={s} value={s}>{statusLabels[s]}</option>
                         ))}
                       </select>
-                      {phone && (
-                        <a
-                          href={`sms:${phone}`}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors"
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 20.105V4.875A2.25 2.25 0 016 2.625h12A2.25 2.25 0 0120.25 4.875v10.5A2.25 2.25 0 0118 17.625H6.75L3.75 20.105z" />
-                          </svg>
-                          SMS
-                        </a>
-                      )}
+                      <button
+                        onClick={() => openChat(b.clientId, getClientName(b))}
+                        className="relative inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 20.105V4.875A2.25 2.25 0 016 2.625h12A2.25 2.25 0 0120.25 4.875v10.5A2.25 2.25 0 0118 17.625H6.75L3.75 20.105z" />
+                        </svg>
+                        Chat
+                        {unread > 0 && (
+                          <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                            {unread}
+                          </span>
+                        )}
+                      </button>
                       <button
                         onClick={() => handleDelete(b.id)}
                         className="text-xs text-red-500 hover:text-red-700 px-2 py-1.5"
