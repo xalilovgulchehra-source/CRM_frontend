@@ -5,8 +5,12 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import type { SalonBrief } from "@/types";
 
+interface SalonWithCount extends SalonBrief {
+  serviceCount: number;
+}
+
 export default function MijozSalonsPage() {
-  const [salons, setSalons] = useState<SalonBrief[]>([]);
+  const [salons, setSalons] = useState<SalonWithCount[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
@@ -14,7 +18,20 @@ export default function MijozSalonsPage() {
   useEffect(() => {
     api
       .get<{ salonlar: SalonBrief[] }>("/salons")
-      .then((res) => setSalons(res.salonlar || []))
+      .then(async (res) => {
+        const list = res.salonlar || [];
+        const withCounts = await Promise.all(
+          list.map(async (s) => {
+            try {
+              const r = await api.get<{ xizmatlar: { id: number }[] }>(`/salons/${s.id}/services`);
+              return { ...s, serviceCount: (r.xizmatlar || []).length };
+            } catch {
+              return { ...s, serviceCount: 0 };
+            }
+          })
+        );
+        setSalons(withCounts.filter((s) => s.serviceCount > 0));
+      })
       .catch((err) => setError(err instanceof Error ? err.message : "Xatolik yuz berdi"))
       .finally(() => setLoading(false));
   }, []);
@@ -69,7 +86,7 @@ export default function MijozSalonsPage() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
           </svg>
           <p className="text-sm text-gray-500">
-            {search ? "Qidiruv bo'yicha hech narsa topilmadi" : "Hozircha salonlar mavjud emas"}
+            {search ? "Qidiruv bo'yicha hech narsa topilmadi" : "Hozircha xizmatli salonlar mavjud emas"}
           </p>
         </div>
       ) : (
@@ -89,6 +106,11 @@ export default function MijozSalonsPage() {
                 </div>
                 <h2 className="text-sm font-semibold text-gray-900 mb-1">{salon.salonName}</h2>
                 <p className="text-sm text-gray-500">{salon.ownerName}</p>
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
+                    {salon.serviceCount} xizmat
+                  </span>
+                </div>
                 <div className="flex items-center gap-1.5 mt-2">
                   <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
