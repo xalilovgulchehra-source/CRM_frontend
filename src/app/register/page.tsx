@@ -32,7 +32,7 @@ export default function RegisterPage() {
         body.salonName = salonName;
         body.ownerName = name;
       } else {
-        body.ownerName = name;
+        body.fullName = name;
       }
       const res = await api.post<AuthResponse>("/auth/register", body);
       localStorage.setItem("token", res.token);

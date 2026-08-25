@@ -74,7 +74,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         <div className="px-3 py-4 border-t border-gray-100">
           <div className="px-3 mb-2">
             <p className="text-sm font-medium text-gray-900 truncate">
-              {user?.ownerName || "User"}
+              {user?.ownerName || user?.fullName || "User"}
             </p>
             <p className="text-xs text-gray-500 truncate">{user?.email}</p>
           </div>

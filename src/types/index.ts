@@ -1,8 +1,9 @@
 export interface User {
   id: number;
   email: string;
-  salonName: string;
-  ownerName: string;
+  salonName?: string;
+  ownerName?: string;
+  fullName?: string;
   phone: string;
   role: "OWNER" | "CUSTOMER";
   createdAt: string;
