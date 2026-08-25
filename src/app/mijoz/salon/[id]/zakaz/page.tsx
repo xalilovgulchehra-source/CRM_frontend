@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { Suspense, useState, useEffect, use } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import type { SalonService, SalonBrief } from "@/types";
 
-export default function ZakazPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id: salonId } = use(params);
+function ZakazForm({ salonId }: { salonId: string }) {
+  const searchParams = useSearchParams();
+  const preselectId = searchParams.get("service");
 
   const [salon, setSalon] = useState<SalonBrief | null>(null);
   const [services, setServices] = useState<SalonService[]>([]);
@@ -28,11 +30,18 @@ export default function ZakazPage({ params }: { params: Promise<{ id: string }> 
       .then(([salonsRes, servicesRes]) => {
         const found = salonsRes.salonlar.find((s) => s.id === Number(salonId));
         setSalon(found || null);
-        setServices(servicesRes.xizmatlar || []);
+        const list = servicesRes.xizmatlar || [];
+        setServices(list);
+        if (preselectId) {
+          const pid = Number(preselectId);
+          if (list.some((s) => s.id === pid)) {
+            setSelectedServiceId(pid);
+          }
+        }
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Xatolik yuz berdi"))
       .finally(() => setLoading(false));
-  }, [salonId]);
+  }, [salonId, preselectId]);
 
   const selectedService = services.find((s) => s.id === selectedServiceId) || null;
   const canSubmit = selectedServiceId && date && !submitting;
@@ -217,5 +226,14 @@ export default function ZakazPage({ params }: { params: Promise<{ id: string }> 
         </form>
       )}
     </div>
+  );
+}
+
+export default function ZakazPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id: salonId } = use(params);
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center py-20"><div className="text-sm text-gray-500">Yuklanmoqda...</div></div>}>
+      <ZakazForm salonId={salonId} />
+    </Suspense>
   );
 }
