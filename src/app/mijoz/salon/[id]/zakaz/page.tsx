@@ -16,6 +16,8 @@ export default function ZakazPage({ params }: { params: Promise<{ id: string }> 
   const [error, setError] = useState("");
 
   const [selectedService, setSelectedService] = useState<SalonService | null>(null);
+  const [serviceSearch, setServiceSearch] = useState("");
+  const [showDropdown, setShowDropdown] = useState(false);
   const [date, setDate] = useState("");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -35,6 +37,16 @@ export default function ZakazPage({ params }: { params: Promise<{ id: string }> 
       .catch((err) => setError(err instanceof Error ? err.message : "Xatolik yuz berdi"))
       .finally(() => setLoading(false));
   }, [salonId]);
+
+  const filteredServices = services.filter((s) =>
+    s.name.toLowerCase().includes(serviceSearch.toLowerCase())
+  );
+
+  function selectService(service: SalonService) {
+    setSelectedService(service);
+    setServiceSearch(service.name);
+    setShowDropdown(false);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -126,37 +138,40 @@ export default function ZakazPage({ params }: { params: Promise<{ id: string }> 
           </div>
         )}
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-3">Xizmatni tanlang</label>
-          {services.length === 0 ? (
-            <p className="text-sm text-gray-400">Xizmatlar mavjud emas</p>
-          ) : (
-            <div className="space-y-2">
-              {services.map((service) => (
+        <div className="relative">
+          <label className="block text-sm font-medium text-gray-700 mb-1">Xizmatni tanlang</label>
+          <div className="relative">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+            </svg>
+            <input
+              type="text"
+              value={serviceSearch}
+              onChange={(e) => {
+                setServiceSearch(e.target.value);
+                setSelectedService(null);
+                setShowDropdown(true);
+              }}
+              onFocus={() => setShowDropdown(true)}
+              onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
+              placeholder="Xizmat nomini kiriting..."
+              className="w-full pl-10 pr-4 py-2.5 text-sm bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-900 focus:border-gray-900 transition-colors"
+            />
+          </div>
+          {showDropdown && serviceSearch && filteredServices.length > 0 && (
+            <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-48 overflow-y-auto">
+              {filteredServices.map((service) => (
                 <button
                   key={service.id}
                   type="button"
-                  onClick={() => setSelectedService(service)}
-                  className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
-                    selectedService?.id === service.id
-                      ? "border-gray-900 bg-gray-900 text-white"
-                      : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
+                  onMouseDown={() => selectService(service)}
+                  className={`w-full text-left px-4 py-3 text-sm hover:bg-gray-50 transition-colors ${
+                    selectedService?.id === service.id ? "bg-gray-50 font-medium" : ""
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium">{service.name}</p>
-                      <p className={`text-xs mt-0.5 ${
-                        selectedService?.id === service.id ? "text-gray-300" : "text-gray-500"
-                      }`}>
-                        {service.durationMins} daqiqa
-                      </p>
-                    </div>
-                    <p className={`text-sm font-semibold ${
-                      selectedService?.id === service.id ? "text-white" : "text-gray-900"
-                    }`}>
-                      {service.price.toLocaleString("uz-UZ")} so&apos;m
-                    </p>
+                    <span className="text-gray-900">{service.name}</span>
+                    <span className="text-gray-500 text-xs">{service.durationMins} daq &middot; {service.price.toLocaleString("uz-UZ")} so&apos;m</span>
                   </div>
                 </button>
               ))}
